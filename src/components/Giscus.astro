@@ -1,9 +1,10 @@
 ---
 // giscus 评论:Github Discussions 驱动。
-// 未配置环境变量时优雅降级:仅显示说明,不加载第三方脚本。
-// 接入方式:在仓库启用 Discussions 后,设置以下环境变量(部署环境或 .env):
+// 默认值已内置本仓库(LeonidasLux/loong-blog)的 giscus 配置。
+// 如需改仓库/换分类,可用环境变量覆盖(部署环境或 .env):
 //   GISCUS_REPO='owner/repo'  GISCUS_REPO_ID='...'
-//   GISCUS_CATEGORY='Announcements'  GISCUS_CATEGORY_ID='...'
+//   GISCUS_CATEGORY='...'  GISCUS_CATEGORY_ID='...'
+// 若不小心把所有 env 值显式置空(空串),则优雅降级:仅显示说明,不加载第三方脚本。
 
 interface Props {
   /** giscus 评论归属标识:固定使用文章路径(mapping=specific) */
@@ -11,10 +12,11 @@ interface Props {
 }
 const { term } = Astro.props;
 const env = import.meta.env;
-const repo = env.GISCUS_REPO as string | undefined;
-const repoId = env.GISCUS_REPO_ID as string | undefined;
-const category = env.GISCUS_CATEGORY as string | undefined;
-const categoryId = env.GISCUS_CATEGORY_ID as string | undefined;
+// 环境变量优先;缺省时回退到内置的 loong-blog 默认配置(公开信息,非敏感)。
+const repo = (env.GISCUS_REPO as string | undefined) ?? 'LeonidasLux/loong-blog';
+const repoId = (env.GISCUS_REPO_ID as string | undefined) ?? 'R_kgDOUGwntw';
+const category = (env.GISCUS_CATEGORY as string | undefined) ?? 'Announcements';
+const categoryId = (env.GISCUS_CATEGORY_ID as string | undefined) ?? 'DIC_kwDOUGwnt84DEXKj';
 const enabled = Boolean(repo && repoId && category && categoryId);
 ---
 {
