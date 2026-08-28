@@ -1,0 +1,53 @@
+---
+// 文章目录:接收 Content Layer 渲染返回的 headings,纯展示。
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+interface Props {
+  headings: Heading[];
+}
+const { headings } = Astro.props;
+const items = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+{
+  items.length > 0 && (
+    <aside class="toc" aria-label="文章目录">
+      <h4 class="toc-title">目录 · TOC</h4>
+      <nav>
+        <ul class="toc-list">
+          {items.map((h) => (
+            <li class:list={[`toc-item`, { 'toc-h3': h.depth === 3 }]}>
+              <a href={`#${h.slug}`}>{h.text}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
+  )
+}
+
+<style>
+  .toc { position: sticky; top: 88px; }
+  .toc-title {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin: 0 0 14px;
+    font-weight: 500;
+  }
+  .toc-list { list-style: none; margin: 0; padding: 0; }
+  .toc-item { margin: 0; }
+  .toc-item a {
+    display: block;
+    padding: 5px 0 5px 12px;
+    font-size: 13px;
+    color: var(--color-muted);
+    border-left: 1px solid var(--color-line);
+  }
+  .toc-item a:hover { color: var(--color-ink); }
+  .toc-h3 a { padding-left: 22px; }
+</style>

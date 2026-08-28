@@ -1,0 +1,1055 @@
+<!doctype html>
+<!--
+  loong-blog · 单文件交互原型
+  依据 blog-prototype-plan.md 生成。
+  视觉方向:editorial-monocle(方向库令牌逐字绑定)
+  交付形态:单文件交互原型(内嵌多屏切换:首页 / 文章 / 随笔 / 归档 / 标签 / 关于)
+  示例内容使用真实技术主题(Astro 7 / Tailwind v4 / Content Layer API),均为示例占位。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>loong-blog · 技术与随笔</title>
+  <meta name="description" content="loong-blog 个人博客原型:技术长文与日常随笔,基于 Astro 7 与 Tailwind v4 设计。" />
+  <style>
+    /* ─── tokens ────────────────────────────────────────────────────────
+       绑定 editorial-monocle 方向库令牌(verbatim);暗色令牌由设计推导(oklch)。 */
+    :root {
+      --bg:      oklch(98% 0.004 95);   /* 纸面 */
+      --surface: oklch(100% 0.002 95);  /* 抬升面 */
+      --fg:      oklch(20% 0.018 70);   /* 墨色 */
+      --muted:   oklch(48% 0.012 70);   /* 次级文本 */
+      --border:  oklch(90% 0.006 95);   /* 发丝线 */
+      --accent:  oklch(52% 0.10 28);    /* 单一强调色 */
+
+      /* derived — do not change */
+      --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+      --fg-soft:     color-mix(in oklch, var(--fg) 6%, transparent);
+
+      /* type — editorial-monocle 字体栈 */
+      --font-display: 'Iowan Old Style', 'Charter', Georgia, 'Times New Roman', serif;
+      --font-body:    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono:    ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+
+      /* scale */
+      --fs-h1: clamp(44px, 6vw, 76px);
+      --fs-h2: clamp(32px, 4vw, 48px);
+      --fs-h3: 22px;
+      --fs-lead: 19px;
+      --fs-body: 16px;
+      --fs-meta: 13px;
+
+      /* spacing — 8-point grid */
+      --gap-xs: 8px;
+      --gap-sm: 12px;
+      --gap-md: 20px;
+      --gap-lg: 32px;
+      --gap-xl: 56px;
+      --gap-2xl: 96px;
+      --container: 1120px;
+      --gutter: 32px;
+
+      /* editorial-monocle: 无圆角卡片,由边框与留白承担结构 */
+      --radius: 0px;
+      --radius-lg: 0px;
+
+      color-scheme: light;
+    }
+
+    html.dark {
+      --bg:      oklch(16% 0.008 70);
+      --surface: oklch(20% 0.010 70);
+      --fg:      oklch(92% 0.006 95);
+      --muted:   oklch(66% 0.012 80);
+      --border:  oklch(30% 0.010 70);
+      --accent:  oklch(72% 0.11 30);
+      color-scheme: dark;
+    }
+
+    /* ─── reset & base ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--fs-body);
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; }
+    p { text-wrap: pretty; }
+    h1, h2, h3, h4 { text-wrap: balance; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+
+    /* ─── layout primitives ─────────────────────────────────────────── */
+    .container {
+      max-width: var(--container);
+      margin-inline: auto;
+      padding-inline: var(--gutter);
+    }
+    .section { padding-block: clamp(48px, 8vw, var(--gap-2xl)); }
+    .stack { display: flex; flex-direction: column; }
+    .stack > * + * { margin-top: var(--gap-md); }
+    .row { display: flex; align-items: center; gap: var(--gap-md); }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-md); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap-lg); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-lg); }
+    .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: var(--gap-xl); align-items: start; }
+    .grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; gap: var(--gap-xl); align-items: start; }
+    @media (max-width: 920px) {
+      .grid-2, .grid-3, .grid-2-1, .grid-1-2 { grid-template-columns: 1fr; }
+    }
+
+    /* ─── type ──────────────────────────────────────────────────────── */
+    .h1, h1 { font-family: var(--font-display); font-size: var(--fs-h1); line-height: 1.04; letter-spacing: -0.02em; margin: 0; }
+    .h2, h2 { font-family: var(--font-display); font-size: var(--fs-h2); line-height: 1.1; letter-spacing: -0.015em; margin: 0; }
+    .h3, h3 { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 600; line-height: 1.3; letter-spacing: -0.005em; margin: 0; }
+    .lead   { font-size: var(--fs-lead); line-height: 1.55; color: var(--muted); max-width: 60ch; margin: 0; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 var(--gap-md);
+    }
+    .meta { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--muted); }
+    .num  { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    /* ─── screen switcher ───────────────────────────────────────────── */
+    .screen { animation: screen-in 0.28s ease; }
+    .screen[data-screen="article"],
+    .screen[data-screen="note"],
+    .screen[data-screen="archives"],
+    .screen[data-screen="tags"],
+    .screen[data-screen="about"] { padding-top: clamp(48px, 7vw, 88px); }
+    @keyframes screen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* ─── chrome: nav + footer ──────────────────────────────────────── */
+    .topnav {
+      position: sticky; top: 0; z-index: 10;
+      background: color-mix(in oklch, var(--bg) 92%, transparent);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topnav-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-md); padding-block: 14px; flex-wrap: wrap; }
+    .logo-link { background: none; border: 0; padding: 0; font-family: var(--font-display); font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
+    .nav-links { display: flex; gap: var(--gap-md); flex-wrap: wrap; }
+    .nav-links a { font-size: 14px; color: var(--muted); padding: 4px 0; }
+    .nav-links a:hover { color: var(--fg); }
+    .nav-links a.is-active { color: var(--fg); border-bottom: 1px solid var(--fg); }
+    .nav-actions { display: flex; gap: var(--gap-xs); align-items: center; }
+    .btn-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--fg); padding: 0;
+    }
+    .btn-icon:hover { border-color: var(--fg); }
+    .btn-icon svg { width: 16px; height: 16px; }
+    .pagefoot { padding-block: var(--gap-xl); color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); margin-top: var(--gap-2xl); }
+    .pagefoot .row-between { flex-wrap: wrap; gap: var(--gap-md); }
+
+    /* ─── buttons ───────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 20px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-size: 15px; font-weight: 500; letter-spacing: -0.005em;
+      transition: transform 0.05s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    /* 主按钮填充略微压深,保证与浅色前景的对比度 ≥ 4.5:1 */
+    .btn-primary { background: color-mix(in oklch, var(--accent) 88%, black); color: var(--surface); border-color: transparent; }
+    .btn-primary:hover { background: color-mix(in oklch, var(--accent) 78%, black); }
+    .dark .btn-primary { background: var(--accent); color: var(--bg); border-color: transparent; }
+    .dark .btn-primary:hover { background: color-mix(in oklch, var(--accent) 88%, black); }
+    .btn-secondary { background: transparent; color: var(--fg); border-color: var(--border); }
+    .btn-secondary:hover { border-color: var(--fg); }
+    .btn-ghost { background: transparent; color: var(--fg); border-color: transparent; padding-inline: 8px; }
+    .btn-ghost:hover { color: var(--fg); box-shadow: inset 0 -1px 0 var(--accent); }
+    .btn-arrow::after { content: '→'; transition: transform 0.15s ease; }
+    .btn-arrow:hover::after { transform: translateX(2px); }
+
+    /* ─── tag / pill ────────────────────────────────────────────────── */
+    .tag {
+      display: inline-flex; align-items: center;
+      padding: 4px 10px;
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px; font-size: 12px;
+      white-space: nowrap;
+    }
+    .tag:hover { border-color: var(--fg); color: var(--fg); }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; background: var(--accent-soft); color: var(--accent);
+      border-radius: 999px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+
+    /* ─── blog hero ─────────────────────────────────────────────────── */
+    .blog-hero { padding-block: clamp(56px, 9vw, 120px) clamp(40px, 6vw, 64px); border-bottom: 1px solid var(--border); margin-bottom: var(--gap-xl); }
+    .blog-hero h1 { font-size: clamp(52px, 8vw, 96px); margin-bottom: var(--gap-md); }
+    .blog-hero .lead { margin-bottom: 0; }
+    .home-grid { padding-bottom: clamp(48px, 7vw, 96px); }
+
+    /* ─── list tabs ─────────────────────────────────────────────────── */
+    .list-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: var(--gap-lg); }
+    .tab { background: none; border: 0; padding: 12px 4px; margin-right: 28px; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: var(--font-mono); letter-spacing: 0.04em; }
+    .tab:hover { color: var(--fg); }
+    .tab.is-active { color: var(--fg); border-bottom-color: var(--fg); }
+    .tab .count { opacity: 0.7; margin-left: 4px; }
+    #filter-bar { margin-bottom: var(--gap-md); display: flex; align-items: center; gap: var(--gap-sm); flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+
+    /* ─── post item (editorial log) ─────────────────────────────────── */
+    .post-item { padding: 26px 0; border-top: 1px solid var(--border); }
+    .post-item:last-child { border-bottom: 1px solid var(--border); }
+    .post-date { display: block; margin-bottom: 10px; }
+    .post-title { font-size: clamp(20px, 2vw, 26px); }
+    .post-title a { color: var(--fg); }
+    .post-title a:hover { box-shadow: inset 0 -2px 0 var(--accent); }
+    .post-dek { margin: 8px 0 0; color: var(--muted); font-size: 15px; max-width: 58ch; }
+    .post-tags { margin-top: 14px; display: flex; gap: var(--gap-xs); flex-wrap: wrap; align-items: center; }
+
+    /* ─── sidebar ───────────────────────────────────────────────────── */
+    .sidebar { position: sticky; top: 88px; }
+    .sidebar-block { padding-bottom: var(--gap-lg); margin-bottom: var(--gap-lg); border-bottom: 1px solid var(--border); }
+    .sidebar-block h3 { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; font-weight: 500; }
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: var(--gap-xs); }
+    .series-list a { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; font-size: 14px; color: var(--fg); border-bottom: 1px dashed var(--border); gap: var(--gap-xs); }
+    .series-list a:hover { box-shadow: inset 0 -1px 0 var(--accent); }
+    .side-about p { font-size: 14px; color: var(--muted); line-height: 1.6; margin: 0 0 14px; }
+    .side-about .btn { padding-inline: 0; }
+
+    /* ─── subscribe strip ───────────────────────────────────────────── */
+    .subscribe { border-top: 1px solid var(--border); }
+    .subscribe .container { text-align: center; padding-block: clamp(48px, 7vw, 80px); }
+
+    /* ─── article ───────────────────────────────────────────────────── */
+    .article-layout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: var(--gap-xl); align-items: start; }
+    @media (max-width: 920px) { .article-layout { grid-template-columns: 1fr; } .toc { display: none; } }
+    .article-header { margin-bottom: var(--gap-lg); }
+    .article-header h1 { font-size: clamp(30px, 4vw, 48px); margin-bottom: 14px; }
+    .article-header .lead { font-size: 16px; margin-top: 0; }
+    .article-meta-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 18px; }
+    .prose { font-size: 17px; line-height: 1.78; max-width: 68ch; }
+    .prose > * + * { margin-top: 18px; }
+    .prose h2 { font-size: 26px; margin: 40px 0 12px; }
+    .prose h3 { font-size: 19px; margin: 30px 0 10px; }
+    .prose p { margin: 0; }
+    .prose ul { padding-left: 22px; margin: 0; }
+    .prose li { margin-bottom: 6px; }
+    .prose pre { background: var(--fg-soft); border: 1px solid var(--border); padding: 18px 20px; overflow: auto; font-size: 13.5px; line-height: 1.65; }
+    .prose code { font-family: var(--font-mono); font-size: 0.88em; background: var(--fg-soft); padding: 2px 5px; }
+    .prose pre code { background: none; padding: 0; font-size: inherit; }
+    .prose blockquote { margin: 26px 0; padding-left: 20px; border-left: 3px solid var(--fg); font-style: italic; color: var(--muted); font-family: var(--font-display); font-size: 18px; }
+    .prose table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .prose th, .prose td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    .prose th { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+
+    /* 正文插图 */
+    .prose figure { margin: 34px 0; border: 1px solid var(--border); }
+    .prose figure svg { width: 100%; height: auto; display: block; }
+    .prose figure figcaption { padding: 10px 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12.5px; font-family: var(--font-mono); line-height: 1.6; }
+
+    /* toc */
+    .toc { position: sticky; top: 88px; }
+    .toc h4 { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; font-weight: 500; }
+    .toc a { display: block; padding: 5px 0 5px 12px; font-size: 13px; color: var(--muted); border-left: 1px solid var(--border); }
+    .toc a:hover { color: var(--fg); }
+    .toc a.is-active { color: var(--accent); border-left-color: var(--accent); }
+
+    /* series nav */
+    .series-nav { border: 1px solid var(--border); padding: 18px 20px; margin-top: var(--gap-xl); }
+    .series-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+    .series-posts { margin: 12px 0 0; padding: 0; list-style: none; }
+    .series-posts li { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-top: 1px dashed var(--border); font-size: 14px; }
+    .series-posts li a:hover { box-shadow: inset 0 -1px 0 var(--accent); }
+    .series-posts li.is-current a { color: var(--fg); font-weight: 600; }
+
+    /* prev / next */
+    .prevnext { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-lg); margin-top: var(--gap-xl); border-top: 1px solid var(--border); padding-top: var(--gap-lg); }
+    @media (max-width: 920px) { .prevnext { grid-template-columns: 1fr; } }
+    .prevnext .dir { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+    .prevnext h3 { font-size: 18px; margin-top: 6px; }
+    .prevnext a:hover h3 { box-shadow: inset 0 -2px 0 var(--accent); }
+
+    /* giscus placeholder */
+    .giscus-box { margin-top: var(--gap-xl); border-top: 1px solid var(--border); padding-top: var(--gap-lg); }
+    .giscus-head { display: flex; align-items: baseline; gap: 14px; }
+    .giscus-box .eyebrow { margin: 0; }
+    .giscus-note { margin-top: 12px; }
+
+    /* ─── archives ──────────────────────────────────────────────────── */
+    .section-head { margin-bottom: var(--gap-xl); }
+    .archive-year { margin-bottom: var(--gap-xl); }
+    .archive-year h2 { font-size: 28px; margin-bottom: 8px; }
+    .archive-item { display: flex; gap: var(--gap-md); align-items: baseline; padding: 14px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+    .archive-item .meta { min-width: 72px; }
+    .archive-item a { font-family: var(--font-display); font-size: 17px; }
+    .archive-item a:hover { box-shadow: inset 0 -1px 0 var(--accent); }
+    .archive-item .tag { margin-left: auto; }
+
+    /* ─── tags ──────────────────────────────────────────────────────── */
+    .tag-cell { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--border); margin: 0 8px 8px 0; font-size: 14px; }
+    .tag-cell:hover { border-color: var(--accent); color: var(--fg); }
+    .tag-cell .count { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+    /* ─── about ─────────────────────────────────────────────────────── */
+    .about-card { display: grid; grid-template-columns: 180px 1fr; gap: var(--gap-xl); align-items: start; }
+    @media (max-width: 920px) { .about-card { grid-template-columns: 1fr; } }
+    .about-card .ph-img { aspect-ratio: 4 / 5; }
+    .about-card h2 { font-size: 26px; margin-bottom: 6px; }
+
+    /* image placeholder */
+    .ph-img {
+      background: linear-gradient(135deg, var(--accent-soft), var(--fg-soft)), var(--surface);
+      border: 1px solid var(--border);
+      aspect-ratio: 16 / 10;
+      display: grid; place-items: center;
+      color: var(--muted); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em;
+    }
+
+    /* ─── search dialog ─────────────────────────────────────────────── */
+    .search-dialog {
+      position: fixed; inset: 0; z-index: 100;
+      background: color-mix(in oklch, var(--bg) 55%, transparent);
+      backdrop-filter: blur(4px);
+      display: grid; align-items: start; padding: 12vh 24px 24px;
+    }
+    .search-box { max-width: 640px; width: 100%; margin-inline: auto; background: var(--surface); border: 1px solid var(--border); }
+    .search-input-wrap { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .search-input-wrap svg { width: 18px; height: 18px; color: var(--muted); flex-shrink: 0; }
+    .search-input-wrap input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 17px; color: var(--fg); outline: none; }
+    .search-input-wrap input::placeholder { color: var(--muted); }
+    .kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--border); padding: 2px 6px; color: var(--muted); flex-shrink: 0; }
+    .search-results { max-height: 50vh; overflow: auto; padding: 6px 0; }
+    .search-result { display: block; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .search-result:hover { background: var(--fg-soft); }
+    .sr-title { font-family: var(--font-display); font-size: 17px; }
+    .sr-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .search-empty { padding: 28px 18px; color: var(--muted); text-align: center; font-size: 14px; }
+
+    /* ─── misc ──────────────────────────────────────────────────────── */
+    .rule { border: 0; border-top: 1px solid var(--border); margin: 0; }
+  </style>
+  <!-- 无闪烁主题首帧脚本 -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('loong-theme');
+        if (t === 'dark' || (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (_) {}
+    })();
+  </script>
+</head>
+<body>
+  <header class="topnav" data-od-id="topnav">
+    <div class="container topnav-inner">
+      <button class="logo-link" data-screen-nav="home">loong-blog</button>
+      <nav class="nav-links">
+        <a href="#" data-screen-nav="home">首页</a>
+        <a href="#" data-screen-nav="archives">归档</a>
+        <a href="#" data-screen-nav="tags">标签</a>
+        <a href="#" data-screen-nav="about">关于</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="btn-icon" data-open-search aria-label="搜索">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.8-3.8"/></svg>
+        </button>
+        <button class="btn-icon" data-theme-toggle aria-label="切换明暗主题">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3L17 7M7 17l-1.7 1.7"/></svg>
+          <svg class="icon-moon" hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.2 14.6A8.5 8.5 0 0 1 9.4 3.8a8.5 8.5 0 1 0 10.8 10.8z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="content">
+    <!-- ══════════ 首页 ══════════ -->
+    <section class="screen" data-screen="home" data-od-id="screen-home">
+      <div class="container">
+        <header class="blog-hero">
+          <p class="eyebrow">个人博客 · GITHUB PAGES · SINCE 2026</p>
+          <h1>loong-blog</h1>
+          <p class="lead">关于 Astro、前端工程与长期主义的记录——长文沉下去,随笔浮上来。</p>
+        </header>
+        <div class="home-grid grid-2-1">
+          <div>
+            <div class="list-tabs" role="tablist" data-od-id="list-tabs">
+              <button class="tab is-active" data-filter="all">全部</button>
+              <button class="tab" data-filter="articles">文章</button>
+              <button class="tab" data-filter="notes">随笔</button>
+            </div>
+            <div id="filter-bar"></div>
+            <div id="post-list" data-od-id="post-list"></div>
+          </div>
+          <aside class="sidebar" data-od-id="sidebar">
+            <div class="sidebar-block">
+              <h3>标签</h3>
+              <div class="tag-cloud" id="side-tags"></div>
+            </div>
+            <div class="sidebar-block">
+              <h3>系列</h3>
+              <nav class="series-list" id="side-series"></nav>
+            </div>
+            <div class="sidebar-block side-about">
+              <h3>关于</h3>
+              <p>你好,我是 LeonidasLux。技术实践者,偶尔写点长文。这个博客托管在 GitHub Pages,零后端、静态优先。</p>
+              <a class="btn btn-ghost btn-arrow" href="#" data-screen-nav="about">了解更多</a>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <section class="subscribe" data-od-id="subscribe">
+        <div class="container">
+          <p class="eyebrow" style="color:var(--muted);">订阅 · RSS</p>
+          <h2 style="font-size: clamp(24px, 3vw, 34px); margin-bottom: 10px;">不想错过新文章?</h2>
+          <p class="lead" style="margin: 0 auto 24px;">通过 RSS 订阅全部文章与随笔——零追踪、零噪音,回到阅读本身。</p>
+          <a class="btn btn-primary" href="rss.xml">订阅 RSS</a>
+        </div>
+      </section>
+    </section>
+
+    <!-- ══════════ 文章详情 ══════════ -->
+    <section class="screen" data-screen="article" hidden data-od-id="screen-article">
+      <div class="container">
+        <div class="article-layout">
+          <article>
+            <header class="article-header">
+              <p class="eyebrow" id="article-kicker"></p>
+              <h1 id="article-title"></h1>
+              <p class="lead" id="article-dek"></p>
+              <div class="article-meta-row">
+                <span class="meta" id="article-date"></span>
+                <span class="meta" id="article-readtime"></span>
+                <span id="article-tags" class="post-tags" style="margin:0;"></span>
+              </div>
+            </header>
+            <div class="prose" id="article-body" data-od-id="article-body"></div>
+            <div class="series-nav" id="series-nav" data-od-id="series-nav" style="display:none;"></div>
+            <div class="giscus-box" data-od-id="giscus-placeholder">
+              <div class="giscus-head">
+                <span class="eyebrow" style="color:var(--muted);">评论 · COMMENTS</span>
+                <span class="meta">giscus · GitHub Discussions 驱动</span>
+              </div>
+              <p class="meta giscus-note">此处为评论占位——正式上线后由 giscus 加载;无评论时自动隐藏。</p>
+            </div>
+          </article>
+          <aside class="toc" data-od-id="toc">
+            <h4>目录 · TOC</h4>
+            <nav id="toc-list"></nav>
+          </aside>
+        </div>
+        <nav class="prevnext" data-od-id="prevnext" id="prevnext"></nav>
+      </div>
+    </section>
+
+    <!-- ══════════ 随笔详情 ══════════ -->
+    <section class="screen" data-screen="note" hidden data-od-id="screen-note">
+      <div class="container" style="max-width: 760px;">
+        <article>
+          <header class="article-header">
+            <p class="eyebrow" id="note-kicker">随笔 · NOTE</p>
+            <h1 id="note-title" style="font-size: clamp(28px, 4vw, 40px);"></h1>
+            <div class="article-meta-row">
+              <span class="meta" id="note-date"></span>
+              <span id="note-tags" class="post-tags" style="margin:0;"></span>
+            </div>
+          </header>
+          <div class="prose" id="note-body"></div>
+          <div class="giscus-box" data-od-id="giscus-placeholder-note">
+            <div class="giscus-head">
+              <span class="eyebrow">评论 · COMMENTS</span>
+              <span class="meta">giscus · GitHub Discussions 驱动</span>
+            </div>
+            <p class="meta giscus-note">此处为评论占位——正式上线后由 giscus 加载;无评论时自动隐藏。</p>
+          </div>
+          <p style="margin-top: var(--gap-xl);">
+            <a class="btn btn-ghost btn-arrow" href="#" data-screen-nav="home">返回首页</a>
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══════════ 归档 ══════════ -->
+    <section class="screen" data-screen="archives" hidden data-od-id="screen-archives">
+      <div class="container" style="max-width: 800px;">
+        <header class="section-head">
+          <p class="eyebrow">归档 · ARCHIVE</p>
+          <h1>归档</h1>
+          <p class="lead">全部文章与随笔,按年份排列。</p>
+        </header>
+        <div id="archive-list"></div>
+      </div>
+    </section>
+
+    <!-- ══════════ 标签 ══════════ -->
+    <section class="screen" data-screen="tags" hidden data-od-id="screen-tags">
+      <div class="container" style="max-width: 800px;">
+        <header class="section-head">
+          <p class="eyebrow">标签 · TAGS</p>
+          <h1>标签</h1>
+          <p class="lead">按主题浏览全部内容。点击标签,将在首页筛选出对应文章与随笔。</p>
+        </header>
+        <div id="tag-grid" style="margin-bottom: var(--gap-xl);"></div>
+      </div>
+    </section>
+
+    <!-- ══════════ 关于 ══════════ -->
+    <section class="screen" data-screen="about" hidden data-od-id="screen-about">
+      <div class="container" style="max-width: 860px;">
+        <header class="section-head">
+          <p class="eyebrow">关于 · ABOUT</p>
+          <h1>关于我</h1>
+        </header>
+        <div class="about-card">
+          <div class="ph-img" aria-label="作者头像占位">AUTHOR · 头像占位</div>
+          <div class="stack">
+            <h2>LeonidasLux</h2>
+            <p class="lead">技术实践者,关注前端工程、静态站点与长期主义。</p>
+            <p style="color: var(--muted);">这个博客由 Astro 7 + Tailwind v4 构建,托管于 GitHub Pages,通过 giscus 评论、Pagefind 搜索。零后端、静态优先——技术选型与实现细节见项目的 PLAN.md。</p>
+            <div class="row" style="flex-wrap: wrap;">
+              <a class="btn btn-secondary" href="https://github.com/LeonidasLux">GitHub</a>
+              <a class="btn btn-ghost btn-arrow" href="rss.xml">RSS 订阅</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pagefoot" data-od-id="footer">
+    <div class="container row-between">
+      <span>© 2026 loong-blog · LeonidasLux</span>
+      <span class="row" style="gap: var(--gap-md);">
+        <a href="rss.xml">RSS</a>
+        <span class="meta">示例原型 · 依据 PLAN.md 设计</span>
+      </span>
+    </div>
+  </footer>
+
+  <!-- ══════════ 搜索弹窗 ══════════ -->
+  <div class="search-dialog" id="search-dialog" hidden data-od-id="search-dialog">
+    <div class="search-box" role="dialog" aria-modal="true" aria-label="搜索">
+      <div class="search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.8-3.8"/></svg>
+        <input id="search-input" type="search" placeholder="搜索文章与随笔…" aria-label="搜索关键词" autocomplete="off" />
+        <span class="kbd">ESC</span>
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+    var $ = function (sel) { return document.querySelector(sel); };
+    var $$ = function (sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); };
+
+    /* ── 数据:示例内容(真实技术主题,标注为示例) ───────────────────── */
+    var POSTS = [
+      {
+        slug: 'astro7-content-layer', type: 'articles',
+        title: 'Astro 7 内容层:Content Layer API 从零上手',
+        date: '2026-08-21', tags: ['Astro', '前端'],
+        series: 'Astro 7 上手', seriesOrder: 1, seriesLength: 3,
+        readTime: '8 分钟',
+        description: 'Astro 7 移除了 legacy content collections,Content Layer API 成为唯一的内容管理方式。这篇文章用一个真实博客的例子,走完定义 schema、加载内容、类型安全查询的全流程。',
+        blocks: [
+          { t: 'p', html: 'Astro 7 在 2026 年 6 月正式发布,最大的变化之一是彻底移除了 legacy content collections。此前基于 <code>src/content/config.ts</code> 的旧写法退出历史舞台,<code>defineCollection</code> + <code>glob()</code> loader 成为唯一官方的内容管理方式。这篇文章用当前这个博客的例子,走一遍完整流程。' },
+          { t: 'h2', html: '为什么是 Content Layer API' },
+          { t: 'p', html: '旧版 content collections 把「文件位置」和「数据类型」绑在一起——文章必须放在固定的目录下,字段校验在编译期完成,但灵活度有限。Content Layer API 把「数据从哪里来」与「数据长什么样」彻底解耦:数据可以来自本地 Markdown、远程 API、甚至数据库,loader 负责加载,Zod schema 负责校验。' },
+          { t: 'p', html: '对个人博客来说,最直接的好处是:frontmatter 写错了类型,构建直接报错,不会带着错误上线。类型安全从编译期开始。' },
+          { t: 'h2', html: '定义集合 Schema' },
+          { t: 'pre', html: "import { defineCollection, glob } from 'astro:content';\nimport { z } from 'astro:schema';\n\nconst articles = defineCollection({\n  loader: glob({ pattern: '**/*.md', base: './src/content/articles' }),\n  schema: z.object({\n    title: z.string(),\n    date: z.coerce.date(),\n    tags: z.array(z.string()).default([]),\n    series: z.string().optional(),\n    seriesOrder: z.number().optional(),\n    draft: z.boolean().default(false),\n  }),\n});\n\nexport const collections = { articles, notes };" },
+          { t: 'p', html: '字段都被显式声明:<code>title</code> 必须是字符串,<code>date</code> 会被自动转成 Date,<code>series</code> 与 <code>seriesOrder</code> 支撑系列文章的聚合与排序。随笔集合的 schema 更简,只有 title、date、tags、draft 四项。' },
+          { t: 'h2', html: '用 glob() 加载内容' },
+          { t: 'p', html: 'loader 是这套 API 的核心。glob loader 接收一个 glob 模式,把所有匹配的 Markdown 文件加载成 entry,并替你处理 frontmatter 解析、相对路径、图片导入等杂活。' },
+          { t: 'figure', variant: 'layers', caption: 'Content Layer 数据流示意:Markdown 文件经 glob() 加载、Zod 校验后,以类型安全方式查询。' },
+          { t: 'table', html: '<table><thead><tr><th>能力</th><th>旧 collections</th><th>Content Layer API</th></tr></thead><tbody><tr><td>数据来源</td><td>仅本地文件</td><td>本地 + 远程 + 数据库</td></tr><tr><td>字段校验</td><td>Zod schema</td><td>Zod schema</td></tr><tr><td>自定义 loader</td><td>不支持</td><td>支持任意数据源</td></tr><tr><td>图片处理</td><td>内置</td><td>内置 + image()</td></tr></tbody></table>' },
+          { t: 'h2', html: '在页面中类型安全地查询' },
+          { t: 'pre', html: "import { getCollection } from 'astro:content';\n\nconst posts = await getCollection('articles', ({ data }) => !data.draft);\nposts.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());" },
+          { t: 'p', html: '查询结果自带完整类型——<code>data.title</code> 是 string,<code>data.date</code> 是 Date,IDE 补全与编译期检查同时生效。列表页、标签页、归档页的聚合逻辑都可以从这里长出来。' },
+          { t: 'h2', html: '小结' },
+          { t: 'quote', html: '类型安全不是约束,而是脚手架——它让我敢写更长的文章,因为结构性问题在构建期就暴露了。' },
+          { t: 'p', html: 'Astro 7 的内容层把这个体验做到了默认配置:没有迁移负担,没有额外插件,新建一篇 Markdown 就自动进入类型系统。下一篇我会写 Tailwind v4 与 Astro 的集成,把它接到这个博客上。' }
+        ]
+      },
+      {
+        slug: 'tailwind-v4-astro', type: 'articles',
+        title: 'Tailwind CSS v4 与 Astro 的正确集成方式',
+        date: '2026-08-14', tags: ['Tailwind', 'Astro'],
+        series: 'Astro 7 上手', seriesOrder: 2, seriesLength: 3,
+        readTime: '6 分钟',
+        description: 'astro add tailwind 在 v4 时代已经不适用。CSS-first 配置、@theme 设计令牌与 class 暗色策略,一条路走通。',
+        blocks: [
+          { t: 'p', html: '<code>astro add tailwind</code> 在 v4 时代已经不适用了。v4 采用 CSS-first 配置,把一切交还给 CSS 文件。集成方式变成手动安装两个包,并在 astro.config 里挂上 Vite 插件。' },
+          { t: 'pre', html: "npm install tailwindcss @tailwindcss/vite\n\n// astro.config.mjs\nimport tailwindcss from '@tailwindcss/vite';\n\nexport default defineConfig({\n  vite: { plugins: [tailwindcss()] },\n});" },
+          { t: 'figure', variant: 'flow', caption: 'v4 集成三步骤示意:安装依赖 → 挂载 Vite 插件 → 在 @theme 中定义设计令牌。' },
+          { t: 'p', html: '之后,设计令牌全部写进 <code>@theme</code> 块,不再需要 tailwind.config.js。暗色模式用 <code>@custom-variant dark</code> 加 class 策略实现,配合首帧内联脚本记忆偏好、杜绝闪烁。' }
+        ]
+      },
+      {
+        slug: 'github-pages-blog', type: 'articles',
+        title: '在 GitHub Pages 上免费托管你的博客',
+        date: '2026-07-30', tags: ['部署', 'Astro'],
+        series: 'Astro 7 上手', seriesOrder: 3, seriesLength: 3,
+        readTime: '5 分钟',
+        description: '静态站托管,GitHub Pages 是成本最低的选项。用 Actions 官方模式部署,而不是把构建产物直接推到分支。',
+        blocks: [
+          { t: 'p', html: '静态站托管,GitHub Pages 是成本最低的选项:免费、可绑定域名、自带 CDN。关键在于用 Actions 官方模式部署,而不是把构建产物直接推到分支。' },
+          { t: 'pre', html: "permissions:\n  pages: write\n  id-token: write\nconcurrency:\n  group: pages\n  cancel-in-progress: false\n\n# checkout + setup-node(Node 24)+ pnpm build + upload-pages-artifact + deploy-pages" },
+          { t: 'figure', variant: 'flow', caption: '部署流水线示意:checkout → setup-node → build → 上传产物 → deploy-pages,构建产物由 Actions 完成,仓库不提交 dist。' },
+          { t: 'p', html: '2026 年 Pages Actions 升级到 v5 线(基于 Node 24),初期有部署异常的社区反馈。先验证 v5,异常就回退到 v4 组合并记录在案。' }
+        ]
+      },
+      {
+        slug: 'dark-mode-thoughts', type: 'notes',
+        title: '关于暗色模式的一点想法',
+        date: '2026-08-25', tags: ['设计', '前端'],
+        description: '亮度的主动选择,比黑底白字更重要。',
+        blocks: [
+          { t: 'p', html: '用了两年暗色模式,我意识到真正重要的不是「黑底白字」,而是「亮度的主动选择」。白天代码区的白色刺眼,晚上白纸黑字又像手电筒。' },
+          { t: 'figure', variant: 'tone', caption: '明暗两套令牌的关系示意:同一内容,两种亮度;跟随系统 + 手动覆盖,首帧无闪烁。' },
+          { t: 'p', html: '所以这个博客的主题切换做成跟随系统 + 手动覆盖,用一个 12 字节的内联脚本在首帧前应用,杜绝闪烁。细节,但值得。' }
+        ]
+      },
+      {
+        slug: 'writing-is-thinking', type: 'notes',
+        title: '写作就是思考',
+        date: '2026-08-18', tags: ['写作'],
+        description: '一篇长文比八次会议更能理清问题。',
+        blocks: [
+          { t: 'p', html: '一篇八百字的文章,比八次三十分钟的会议更能帮我理清一个技术问题。写作迫使你把模糊的「好像懂了」变成「到底是什么」。' }
+        ]
+      },
+      {
+        slug: 'pagefind-static-search', type: 'notes',
+        title: 'Pagefind 静态搜索真香',
+        date: '2026-08-09', tags: ['搜索', '前端'],
+        description: '构建后索引静态 HTML,零后端全文搜索。',
+        blocks: [
+          { t: 'p', html: '给静态博客加全文搜索,Pagefind 是最省心的方案:构建后索引静态 HTML,前端一个搜索弹窗,零后端,还能离线工作。' }
+        ]
+      },
+      {
+        slug: 'astro7-rust-speed', type: 'notes',
+        title: 'Rust 编译器让 Astro 7 构建快了多少',
+        date: '2026-08-02', tags: ['性能', 'Astro'],
+        description: 'Rust 重写了 Markdown 流水线,构建速度最高提升 61%。',
+        blocks: [
+          { t: 'p', html: 'Astro 7 用 Rust 重写了 Markdown 流水线,官方称构建速度比 v6 最高提升 61%。长文博客的体验差距是实实在在的——冷启动构建几乎感觉不到等待。' }
+        ]
+      }
+    ];
+
+    /* ── 工具 ─────────────────────────────────────────────────────── */
+    function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function byDate(a, b) { return b.date.localeCompare(a.date); }
+    function renderBlocks(blocks) {
+      var i = 0;
+      return blocks.map(function (b) {
+        if (b.t === 'h2' || b.t === 'h3') { i++; return '<' + b.t + ' id="sec-' + i + '">' + b.html + '</' + b.t + '>'; }
+        if (b.t === 'p')   { return '<p>' + b.html + '</p>'; }
+        if (b.t === 'pre') { return '<pre><code>' + esc(b.html) + '</code></pre>'; }
+        if (b.t === 'quote') { return '<blockquote>' + b.html + '</blockquote>'; }
+        if (b.t === 'table') { return b.html; }
+        if (b.t === 'figure') { return figureArt(b); }
+        return '';
+      }).join('');
+    }
+
+    /* ── 正文插图生成器(editorial 风格,随明暗主题自适应) ──────────── */
+    function figureArt(b) {
+      var v = b.variant || 'layers';
+      var svg = [];
+      svg.push('<figure class="prose-figure">');
+      svg.push('<svg viewBox="0 0 1200 675" role="img" aria-label="示意图">');
+      svg.push('<rect width="1200" height="675" style="fill:var(--bg);"/>');
+
+      if (v === 'layers') {
+        /* 左侧阶段标签 */
+        svg.push('<text x="160" y="187" text-anchor="end" style="font-family:var(--font-mono);font-size:20px;letter-spacing:5px;fill:var(--muted);">SOURCE</text>');
+        svg.push('<text x="160" y="337" text-anchor="end" style="font-family:var(--font-mono);font-size:20px;letter-spacing:5px;fill:var(--muted);">VALIDATE</text>');
+        svg.push('<text x="160" y="487" text-anchor="end" style="font-family:var(--font-mono);font-size:20px;letter-spacing:5px;fill:var(--muted);">QUERY</text>');
+        /* 三层盒子 */
+        svg.push('<rect x="230" y="150" width="850" height="74" style="fill:var(--surface);stroke:var(--border);stroke-width:2;"/>');
+        svg.push('<rect x="230" y="300" width="850" height="74" style="fill:var(--surface);stroke:var(--border);stroke-width:2;"/>');
+        svg.push('<rect x="230" y="450" width="850" height="74" style="fill:var(--surface);stroke:var(--border);stroke-width:2;"/>');
+        /* 盒子内文字 */
+        svg.push('<text x="252" y="183" style="font-family:var(--font-body);font-size:21px;fill:var(--fg);">src/content/articles/**/*.md</text>');
+        svg.push('<text x="252" y="208" style="font-family:var(--font-mono);font-size:14px;fill:var(--muted);">frontmatter 与 Markdown 正文</text>');
+        svg.push('<text x="252" y="333" style="font-family:var(--font-body);font-size:21px;fill:var(--fg);">defineCollection() + Zod schema</text>');
+        svg.push('<text x="252" y="358" style="font-family:var(--font-mono);font-size:14px;fill:var(--muted);">字段类型校验,结构问题在构建期暴露</text>');
+        svg.push('<text x="252" y="483" style="font-family:var(--font-body);font-size:21px;fill:var(--fg);">getCollection(&quot;articles&quot;)</text>');
+        svg.push('<text x="252" y="508" style="font-family:var(--font-mono);font-size:14px;fill:var(--muted);">完整类型推导,IDE 补全生效</text>');
+        /* 连接箭头 */
+        svg.push('<line x1="655" y1="224" x2="655" y2="300" style="stroke:var(--muted);stroke-width:2;"/>');
+        svg.push('<polygon points="655,302 647,286 663,286" style="fill:var(--muted);"/>');
+        svg.push('<line x1="655" y1="374" x2="655" y2="450" style="stroke:var(--muted);stroke-width:2;"/>');
+        svg.push('<polygon points="655,452 647,436 663,436" style="fill:var(--muted);"/>');
+        /* 底部输出 */
+        svg.push('<text x="230" y="580" style="font-family:var(--font-mono);font-size:16px;letter-spacing:4px;fill:var(--muted);">→ 页面渲染 · 归档 · 标签聚合</text>');
+      } else if (v === 'flow') {
+        svg.push('<text x="80" y="100" style="font-family:var(--font-mono);font-size:16px;letter-spacing:5px;fill:var(--muted);">STEP 01 → 03</text>');
+        var steps = [
+          { x: 80,  n: '01', title: '安装依赖', l1: 'tailwindcss', l2: '@tailwindcss/vite' },
+          { x: 450, n: '02', title: '挂载插件', l1: 'astro.config.mjs', l2: 'vite.plugins' },
+          { x: 820, n: '03', title: '定义令牌', l1: 'global.css', l2: '@theme · dark 变体' }
+        ];
+        steps.forEach(function (st) {
+          svg.push('<rect x="' + st.x + '" y="170" width="300" height="270" style="fill:var(--surface);stroke:var(--border);stroke-width:2;"/>');
+          svg.push('<text x="' + (st.x + 24) + '" y="228" style="font-family:var(--font-mono);font-size:24px;letter-spacing:3px;fill:var(--muted);">' + st.n + '</text>');
+          svg.push('<text x="' + (st.x + 24) + '" y="286" style="font-family:var(--font-body);font-size:24px;fill:var(--fg);">' + st.title + '</text>');
+          svg.push('<text x="' + (st.x + 24) + '" y="332" style="font-family:var(--font-mono);font-size:15px;fill:var(--muted);">' + st.l1 + '</text>');
+          svg.push('<text x="' + (st.x + 24) + '" y="362" style="font-family:var(--font-mono);font-size:15px;fill:var(--muted);">' + st.l2 + '</text>');
+          svg.push('<rect x="' + (st.x + 24) + '" y="392" width="40" height="4" style="fill:var(--accent-soft);"/>');
+        });
+        /* 步骤间箭头 */
+        svg.push('<line x1="380" y1="305" x2="450" y2="305" style="stroke:var(--muted);stroke-width:2;"/>');
+        svg.push('<polygon points="452,305 436,297 436,313" style="fill:var(--muted);"/>');
+        svg.push('<line x1="750" y1="305" x2="820" y2="305" style="stroke:var(--muted);stroke-width:2;"/>');
+        svg.push('<polygon points="822,305 806,297 806,313" style="fill:var(--muted);"/>');
+        /* 底部说明 */
+        svg.push('<line x1="80" y1="520" x2="1120" y2="520" style="stroke:var(--border);stroke-width:2;"/>');
+        svg.push('<text x="80" y="565" style="font-family:var(--font-mono);font-size:16px;letter-spacing:4px;fill:var(--muted);">CSS 文件即配置 · 无需 tailwind.config.js</text>');
+      } else if (v === 'tone') {
+        /* 左:浅色面板 */
+        svg.push('<rect x="80" y="150" width="460" height="330" style="fill:var(--surface);stroke:var(--border);stroke-width:2;"/>');
+        svg.push('<text x="108" y="200" style="font-family:var(--font-mono);font-size:18px;letter-spacing:5px;fill:var(--muted);">LIGHT</text>');
+        svg.push('<rect x="108" y="232" width="300" height="12" style="fill:var(--fg-soft);"/>');
+        svg.push('<rect x="108" y="260" width="240" height="12" style="fill:var(--fg-soft);"/>');
+        svg.push('<rect x="108" y="288" width="320" height="12" style="fill:var(--fg-soft);"/>');
+        svg.push('<rect x="108" y="350" width="86" height="34" style="fill:var(--accent-soft);"/>');
+        svg.push('<circle cx="172" cy="367" r="13" style="fill:var(--surface);stroke:var(--border);stroke-width:2;"/>');
+        svg.push('<text x="108" y="440" style="font-family:var(--font-body);font-size:18px;fill:var(--fg);">白纸黑字,白天阅读</text>');
+        /* 右:深色面板 */
+        svg.push('<rect x="660" y="150" width="460" height="330" style="fill:var(--fg);"/>');
+        svg.push('<text x="688" y="200" style="font-family:var(--font-mono);font-size:18px;letter-spacing:5px;fill:var(--bg);">DARK</text>');
+        svg.push('<rect x="688" y="232" width="300" height="12" style="fill:var(--bg);opacity:0.35;"/>');
+        svg.push('<rect x="688" y="260" width="240" height="12" style="fill:var(--bg);opacity:0.35;"/>');
+        svg.push('<rect x="688" y="288" width="320" height="12" style="fill:var(--bg);opacity:0.35;"/>');
+        svg.push('<rect x="688" y="350" width="86" height="34" style="fill:var(--bg);opacity:0.85;"/>');
+        svg.push('<circle cx="744" cy="367" r="13" style="fill:var(--fg);stroke:var(--bg);stroke-width:2;"/>');
+        svg.push('<text x="688" y="440" style="font-family:var(--font-body);font-size:18px;fill:var(--bg);">黑底白字,夜间更柔</text>');
+        /* 中间切换连接 */
+        svg.push('<line x1="540" y1="315" x2="660" y2="315" style="stroke:var(--muted);stroke-width:2;"/>');
+        svg.push('<polygon points="662,315 646,307 646,323" style="fill:var(--muted);"/>');
+        svg.push('<text x="600" y="560" text-anchor="middle" style="font-family:var(--font-mono);font-size:15px;letter-spacing:3px;fill:var(--muted);">跟随系统 · 手动覆盖 · 首帧无闪烁</text>');
+      }
+
+      svg.push('</svg>');
+      svg.push('<figcaption>' + esc(b.caption) + '</figcaption>');
+      svg.push('</figure>');
+      return svg.join('');
+    }
+
+    /* ── 状态 ─────────────────────────────────────────────────────── */
+    var filterTab = 'all';
+    var filterTag = null;
+
+    /* ── 屏幕切换 ─────────────────────────────────────────────────── */
+    function showScreen(name) {
+      $$('.screen').forEach(function (s) { s.hidden = (s.dataset.screen !== name); });
+      $$('[data-screen-nav]').forEach(function (a) {
+        a.classList.toggle('is-active', a.dataset.screenNav === name);
+      });
+      window.scrollTo(0, 0);
+      if (name === 'home') document.title = 'loong-blog · 技术与随笔';
+      updateScrollspy();
+    }
+
+    /* ── 主题 ─────────────────────────────────────────────────────── */
+    function applyTheme(theme) {
+      var dark = (theme === 'dark');
+      document.documentElement.classList.toggle('dark', dark);
+      try { localStorage.setItem('loong-theme', theme); } catch (_) {}
+      var sun = $('.icon-sun'), moon = $('.icon-moon');
+      if (sun) sun.hidden = !dark;
+      if (moon) moon.hidden = dark;
+    }
+
+    /* ── 渲染:首页列表 ────────────────────────────────────────────── */
+    function renderPostList() {
+      var list = $('#post-list');
+      var posts = POSTS.filter(function (p) {
+        if (filterTag && p.tags.indexOf(filterTag) === -1) return false;
+        if (filterTab === 'articles' && p.type !== 'articles') return false;
+        if (filterTab === 'notes' && p.type !== 'notes') return false;
+        return true;
+      }).sort(byDate);
+
+      var bar = $('#filter-bar');
+      if (filterTag) {
+        bar.innerHTML = '正在按标签筛选:<span class="tag">' + filterTag + '</span>' +
+          '<button class="btn btn-ghost" data-clear-tag style="padding-inline:0;">清除筛选</button>';
+      } else {
+        bar.innerHTML = '';
+      }
+
+      list.innerHTML = posts.map(function (p) {
+        var badge = p.type === 'articles' ? '文章' : '随笔';
+        var series = p.series ? '<span class="tag" style="color:var(--fg);">' + p.series + ' · ' + p.seriesOrder + '/' + p.seriesLength + '</span>' : '';
+        return '<article class="post-item">' +
+          '<span class="meta post-date">' + p.date + ' · ' + badge + '</span>' +
+          '<h3 class="post-title"><a href="#" data-open="' + p.slug + '">' + p.title + '</a></h3>' +
+          '<p class="post-dek">' + p.description + '</p>' +
+          '<div class="post-tags">' + p.tags.map(function (t) { return '<span class="tag">' + t + '</span>'; }).join('') + series + '</div>' +
+          '</article>';
+      }).join('');
+
+      /* 更新 tab 计数 */
+      $$('.tab').forEach(function (t) {
+        var f = t.dataset.filter;
+        var n = POSTS.filter(function (p) {
+          if (f === 'articles') return p.type === 'articles';
+          if (f === 'notes') return p.type === 'notes';
+          return true;
+        }).length;
+        t.innerHTML = t.textContent.trim() ? t.textContent.split(' ')[0] + ' <span class="count">' + n + '</span>' : '';
+      });
+    }
+
+    /* ── 渲染:侧栏 ────────────────────────────────────────────────── */
+    function renderSidebar() {
+      var counts = {};
+      POSTS.forEach(function (p) { p.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
+      $('#side-tags').innerHTML = Object.keys(counts).sort().map(function (t) {
+        return '<a class="tag" href="#" data-side-tag="' + t + '">' + t + ' · ' + counts[t] + '</a>';
+      }).join('');
+
+      var series = {};
+      POSTS.forEach(function (p) { if (p.series) { (series[p.series] = series[p.series] || []).push(p); } });
+      $('#side-series').innerHTML = Object.keys(series).map(function (s) {
+        return '<a href="#" data-series="' + s + '">' + s + '<span class="meta">' + series[s].length + ' 篇</span></a>';
+      }).join('');
+    }
+
+    /* ── 渲染:归档 ────────────────────────────────────────────────── */
+    function renderArchives() {
+      var byYear = {};
+      POSTS.slice().sort(byDate).forEach(function (p) {
+        var y = p.date.slice(0, 4);
+        (byYear[y] = byYear[y] || []).push(p);
+      });
+      $('#archive-list').innerHTML = Object.keys(byYear).sort().reverse().map(function (y) {
+        return '<div class="archive-year"><h2>' + y + '</h2>' +
+          byYear[y].map(function (p) {
+            return '<div class="archive-item"><span class="meta">' + p.date.slice(5) + '</span>' +
+              '<a href="#" data-open="' + p.slug + '">' + p.title + '</a>' +
+              '<span class="tag">' + (p.type === 'articles' ? '文章' : '随笔') + '</span></div>';
+          }).join('') + '</div>';
+      }).join('');
+    }
+
+    /* ── 渲染:标签 ────────────────────────────────────────────────── */
+    function renderTags() {
+      var counts = {};
+      POSTS.forEach(function (p) { p.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
+      $('#tag-grid').innerHTML = Object.keys(counts).sort().map(function (t) {
+        return '<a class="tag-cell" href="#" data-side-tag="' + t + '">' + t + '<span class="count">' + counts[t] + '</span></a>';
+      }).join('');
+    }
+
+    /* ── 渲染:文章 / 随笔详情 ─────────────────────────────────────── */
+    function renderArticle(p) {
+      $('#article-kicker').textContent = p.series ? ('SERIES · ' + p.series + ' · ' + p.seriesOrder + '/' + p.seriesLength) : '文章 · ARTICLE';
+      $('#article-title').textContent = p.title;
+      $('#article-dek').textContent = p.description;
+      $('#article-date').textContent = p.date;
+      $('#article-readtime').textContent = p.readTime + ' 阅读';
+      $('#article-tags').innerHTML = p.tags.map(function (t) { return '<span class="tag">' + t + '</span>'; }).join('');
+      $('#article-body').innerHTML = renderBlocks(p.blocks);
+
+      /* toc */
+      var headings = p.blocks.filter(function (b) { return b.t === 'h2' || b.t === 'h3'; });
+      var tocCol = $('.toc'), toc = $('#toc-list');
+      if (headings.length) {
+        tocCol.style.display = '';
+        toc.innerHTML = headings.map(function (b, i) {
+          return '<a href="#" data-target="sec-' + (i + 1) + '">' + b.html + '</a>';
+        }).join('');
+      } else {
+        tocCol.style.display = 'none';
+        toc.innerHTML = '';
+      }
+
+      /* 系列导航 */
+      var sn = $('#series-nav');
+      if (p.series) {
+        sn.style.display = '';
+        var sibs = POSTS.filter(function (x) { return x.series === p.series; })
+          .sort(function (a, b) { return a.seriesOrder - b.seriesOrder; });
+        sn.innerHTML = '<p class="series-label">系列 · ' + p.series + '</p><ol class="series-posts">' +
+          sibs.map(function (x) {
+            var cur = (x.slug === p.slug);
+            return '<li class="' + (cur ? 'is-current' : '') + '"><a href="#" data-open="' + x.slug + '">' + x.seriesOrder + '. ' + x.title + '</a>' +
+              (cur ? '<span class="meta">当前</span>' : '') + '</li>';
+          }).join('') + '</ol>';
+      } else {
+        sn.style.display = 'none';
+        sn.innerHTML = '';
+      }
+
+      /* 上一篇 / 下一篇 */
+      var arts = POSTS.filter(function (x) { return x.type === 'articles'; }).sort(byDate);
+      var idx = arts.findIndex(function (x) { return x.slug === p.slug; });
+      var prev = arts[idx - 1], next = arts[idx + 1];
+      $('#prevnext').innerHTML =
+        (prev ? '<a href="#" data-open="' + prev.slug + '"><span class="dir">← 上一篇</span><h3>' + prev.title + '</h3></a>' : '<span></span>') +
+        (next ? '<a href="#" data-open="' + next.slug + '" style="text-align:right;"><span class="dir">下一篇 →</span><h3>' + next.title + '</h3></a>' : '<span></span>');
+
+      document.title = p.title + ' · loong-blog';
+    }
+
+    function renderNote(p) {
+      $('#note-title').textContent = p.title;
+      $('#note-date').textContent = p.date;
+      $('#note-tags').innerHTML = p.tags.map(function (t) { return '<span class="tag">' + t + '</span>'; }).join('');
+      $('#note-body').innerHTML = renderBlocks(p.blocks);
+      document.title = p.title + ' · loong-blog';
+    }
+
+    function openPost(slug) {
+      var p = POSTS.filter(function (x) { return x.slug === slug; })[0];
+      if (!p) return;
+      if (p.type === 'notes') { renderNote(p); showScreen('note'); }
+      else { renderArticle(p); showScreen('article'); }
+    }
+
+    /* ── 搜索 ─────────────────────────────────────────────────────── */
+    function openSearch() {
+      $('#search-dialog').hidden = false;
+      var input = $('#search-input');
+      input.value = '';
+      renderSearch('');
+      setTimeout(function () { input.focus(); }, 30);
+    }
+    function closeSearch() { $('#search-dialog').hidden = true; }
+    function renderSearch(q) {
+      var ql = q.trim().toLowerCase();
+      var res = $('#search-results');
+      if (!ql) {
+        res.innerHTML = '<div class="search-empty">输入关键词,搜索全部文章与随笔。</div>';
+        return;
+      }
+      var hits = POSTS.filter(function (p) {
+        var hay = (p.title + ' ' + p.description + ' ' + p.tags.join(' ') + ' ' +
+          (p.blocks || []).map(function (b) { return b.html; }).join(' ')).toLowerCase();
+        return hay.indexOf(ql) !== -1;
+      }).slice(0, 8);
+      res.innerHTML = hits.length ? hits.map(function (p) {
+        return '<a class="search-result" href="#" data-open="' + p.slug + '">' +
+          '<div class="sr-title">' + p.title + '</div>' +
+          '<div class="sr-meta">' + (p.type === 'articles' ? '文章' : '随笔') + ' · ' + p.date + '</div>' +
+          '</a>';
+      }).join('') : '<div class="search-empty">未找到与「' + q.trim() + '」相关的内容</div>';
+    }
+
+    /* ── TOC 滚动联动 ─────────────────────────────────────────────── */
+    function updateScrollspy() {
+      var scr = $('#screen-article');
+      if (!scr || scr.hidden) return;
+      var links = $$('#toc-list a');
+      if (!links.length) return;
+      var activeId = null;
+      links.forEach(function (a) {
+        var el = document.getElementById(a.dataset.target);
+        if (el && el.getBoundingClientRect().top <= 150) activeId = a.dataset.target;
+      });
+      links.forEach(function (a) { a.classList.toggle('is-active', a.dataset.target === activeId); });
+    }
+    window.addEventListener('scroll', updateScrollspy, { passive: true });
+
+    /* ── 全局事件委托 ─────────────────────────────────────────────── */
+    document.addEventListener('click', function (e) {
+      var open = e.target.closest('[data-open]');
+      if (open) { e.preventDefault(); closeSearch(); openPost(open.dataset.open); return; }
+
+      var nav = e.target.closest('[data-screen-nav]');
+      if (nav) { e.preventDefault(); showScreen(nav.dataset.screenNav); return; }
+
+      var tab = e.target.closest('.tab');
+      if (tab) {
+        filterTab = tab.dataset.filter;
+        filterTag = null;
+        $$('.tab').forEach(function (t) { t.classList.toggle('is-active', t === tab); });
+        renderPostList();
+        return;
+      }
+
+      var clear = e.target.closest('[data-clear-tag]');
+      if (clear) { e.preventDefault(); filterTag = null; renderPostList(); return; }
+
+      var sideTag = e.target.closest('[data-side-tag]');
+      if (sideTag) {
+        e.preventDefault();
+        filterTag = sideTag.dataset.sideTag;
+        filterTab = 'all';
+        $$('.tab').forEach(function (t) { t.classList.toggle('is-active', t.dataset.filter === 'all'); });
+        renderPostList();
+        showScreen('home');
+        return;
+      }
+
+      var series = e.target.closest('[data-series]');
+      if (series) {
+        e.preventDefault();
+        var sibs = POSTS.filter(function (x) { return x.series === series.dataset.series; })
+          .sort(function (a, b) { return a.seriesOrder - b.seriesOrder; });
+        if (sibs[0]) openPost(sibs[0].slug);
+        return;
+      }
+
+      var tocA = e.target.closest('#toc-list a[data-target]');
+      if (tocA) {
+        e.preventDefault();
+        var el = document.getElementById(tocA.dataset.target);
+        if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 90);
+        return;
+      }
+    });
+
+    var searchBtn = $('[data-open-search]');
+    if (searchBtn) searchBtn.addEventListener('click', function (e) { e.preventDefault(); openSearch(); });
+
+    var dialog = $('#search-dialog');
+    if (dialog) dialog.addEventListener('click', function (e) { if (e.target === dialog) closeSearch(); });
+
+    var input = $('#search-input');
+    if (input) input.addEventListener('input', function () { renderSearch(input.value); });
+
+    var themeBtn = $('[data-theme-toggle]');
+    if (themeBtn) themeBtn.addEventListener('click', function () {
+      applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { closeSearch(); return; }
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') { e.preventDefault(); openSearch(); }
+    });
+
+    /* ── init ─────────────────────────────────────────────────────── */
+    applyTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    renderPostList();
+    renderSidebar();
+    renderArchives();
+    renderTags();
+    showScreen('home');
+  })();
+  </script>
+</body>
+</html>

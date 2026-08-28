@@ -1,0 +1,157 @@
+---
+// 全站骨架:head 元信息 / 导航 / 页脚 / 主题切换 / View Transitions。
+// 页面文件只负责组装布局 + 组件 + 数据,不在布局内承载业务逻辑。
+import { ClientRouter } from 'astro:transitions';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import SearchDialog from '../components/SearchDialog.astro';
+import { withBase } from '../lib/url';
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** canonical:默认取当前 URL */
+  canonical?: string;
+  ogImage?: string;
+  ogType?: 'website' | 'article';
+}
+
+const {
+  title = 'loong-blog · 技术与随笔',
+  description = '个人博客:技术长文与日常随笔,基于 Astro 7、Tailwind v4 与 GitHub Pages。',
+  canonical,
+  ogImage,
+  ogType = 'website',
+} = Astro.props;
+
+const site = import.meta.env.SITE ?? '/';
+const siteUrl = new URL(site);
+const pageUrl = canonical ? new URL(canonical, siteUrl) : new URL(Astro.url.pathname, siteUrl);
+
+const navItems = [
+  { text: '首页', href: withBase('/') },
+  { text: '归档', href: withBase('/archives') },
+  { text: '标签', href: withBase('/tags') },
+  { text: '系列', href: withBase('/series') },
+  { text: '关于', href: withBase('/about') },
+];
+
+function isActive(href: string): boolean {
+  const p = Astro.url.pathname;
+  if (href === withBase('/')) return p === href;
+  return p === href || p.startsWith(href + '/');
+}
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
+    <link rel="alternate" type="application/rss+xml" title="loong-blog RSS" href={withBase('/rss.xml')} />
+
+    <link rel="canonical" href={pageUrl} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content="loong-blog" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={pageUrl} />
+    {ogImage && <meta property="og:image" content={new URL(ogImage, siteUrl).toString()} />}
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
+    <!-- 无闪烁主题首帧脚本:html.dark 类在 CSS 加载前生效 -->
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('loong-theme');
+          if (t === 'dark' || (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <ClientRouter />
+    <header class="topnav">
+      <div class="container topnav-inner">
+        <a class="logo-link" href={withBase('/')} aria-label="回到首页">loong-blog</a>
+        <nav class="nav-links" aria-label="主导航">
+          {navItems.map((item) => (
+            <a href={item.href} class:list={['nav-link', { 'is-active': isActive(item.href) }]}>{item.text}</a>
+          ))}
+        </nav>
+        <div class="nav-actions">
+          <button class="btn-icon" type="button" data-open-search aria-label="搜索">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.8-3.8"/></svg>
+          </button>
+          <ThemeToggle />
+        </div>
+      </div>
+    </header>
+
+    <main id="content" data-pagefind-body>
+      <slot />
+    </main>
+
+    <footer class="pagefoot">
+      <div class="container row-between">
+        <span>© 2026 loong-blog · LeonidasLux</span>
+        <span class="row footer-links">
+          <a href={withBase('/rss.xml')}>RSS</a>
+          <span class="meta">Astro 7 · Tailwind v4 · GitHub Pages</span>
+        </span>
+      </div>
+    </footer>
+
+    <SearchDialog />
+  </body>
+</html>
+
+<style>
+  /* ── 顶部导航 ── */
+  .topnav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in oklch, var(--color-paper) 92%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-line);
+  }
+  .topnav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap-md);
+    padding-block: 14px;
+    flex-wrap: wrap;
+  }
+  .logo-link {
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
+  }
+  .nav-links { display: flex; gap: var(--gap-md); flex-wrap: wrap; }
+  .nav-link { font-size: 14px; color: var(--color-muted); padding: 4px 0; }
+  .nav-link:hover { color: var(--color-ink); }
+  .nav-link.is-active { color: var(--color-ink); border-bottom: 1px solid var(--color-ink); }
+  .nav-actions { display: flex; gap: var(--gap-xs); align-items: center; }
+
+  /* ── 页脚 ── */
+  .pagefoot {
+    padding-block: var(--gap-xl);
+    color: var(--color-muted);
+    font-size: 13px;
+    border-top: 1px solid var(--color-line);
+    margin-top: var(--gap-2xl);
+  }
+  .pagefoot .row-between { flex-wrap: wrap; gap: var(--gap-md); }
+  .footer-links { gap: var(--gap-md); }
+  .footer-links a:hover { color: var(--color-ink); }
+</style>

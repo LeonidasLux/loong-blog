@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建产物
+dist/
+.astro/
+
+# 环境与工具
+.DS_Store
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.*
+.vercel/
+.netlify/

@@ -1,0 +1,62 @@
+---
+// giscus 评论:Github Discussions 驱动。
+// 未配置环境变量时优雅降级:仅显示说明,不加载第三方脚本。
+// 接入方式:在仓库启用 Discussions 后,设置以下环境变量(部署环境或 .env):
+//   GISCUS_REPO='owner/repo'  GISCUS_REPO_ID='...'
+//   GISCUS_CATEGORY='Announcements'  GISCUS_CATEGORY_ID='...'
+
+interface Props {
+  /** giscus 评论归属标识:固定使用文章路径(mapping=specific) */
+  term: string;
+}
+const { term } = Astro.props;
+const env = import.meta.env;
+const repo = env.GISCUS_REPO as string | undefined;
+const repoId = env.GISCUS_REPO_ID as string | undefined;
+const category = env.GISCUS_CATEGORY as string | undefined;
+const categoryId = env.GISCUS_CATEGORY_ID as string | undefined;
+const enabled = Boolean(repo && repoId && category && categoryId);
+---
+{
+  enabled ? (
+    <section class="giscus-wrap">
+      <div class="giscus-head">
+        <span class="eyebrow">评论 · COMMENTS</span>
+        <span class="meta">giscus · GitHub Discussions 驱动</span>
+      </div>
+      <div class="giscus" data-term={term}>
+        <script
+          is:inline
+          src="https://giscus.app/client.js"
+          data-repo={repo}
+          data-repo-id={repoId}
+          data-category={category}
+          data-category-id={categoryId}
+          data-mapping="specific"
+          data-term={term}
+          data-strict="0"
+          data-reactions-enabled="1"
+          data-emit-metadata="0"
+          data-input-position="bottom"
+          data-theme="preferred_color_scheme"
+          data-lang="zh-CN"
+          crossorigin="anonymous"
+          async
+        ></script>
+      </div>
+    </section>
+  ) : (
+    <aside class="giscus-wrap giscus-placeholder">
+      <div class="giscus-head">
+        <span class="eyebrow">评论 · COMMENTS</span>
+        <span class="meta">giscus · 尚未配置</span>
+      </div>
+      <p class="meta giscus-note">评论待接入:仓库启用 Discussions 并配置 giscus 环境变量后将自动开启,当前页面不加载任何第三方脚本。</p>
+    </aside>
+  )
+}
+
+<style>
+  .giscus-placeholder { opacity: 0.9; }
+  .giscus-placeholder .giscus-head .eyebrow { color: var(--color-muted); }
+</style>

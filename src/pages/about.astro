@@ -1,0 +1,48 @@
+---
+// 关于页:个人介绍。
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../lib/url';
+---
+<BaseLayout title="关于我 · loong-blog" description="关于 loong-blog 的作者与这个博客。">
+  <div class="container about-container">
+    <header class="section-head">
+      <p class="eyebrow">关于 · ABOUT</p>
+      <h1>关于我</h1>
+    </header>
+
+    <div class="about-card">
+      <div class="ph-img about-avatar" aria-label="作者头像占位">AUTHOR</div>
+      <div class="stack about-body">
+        <h2>LeonidasLux</h2>
+        <p class="lead">技术实践者,关注前端工程、静态站点与长期主义。</p>
+        <p class="about-detail">
+          这个博客由 Astro 7 + Tailwind v4 构建,托管于 GitHub Pages,
+          通过 giscus 评论、Pagefind 搜索。零后端、静态优先——技术选型与实现细节见项目的
+          PLAN.md。
+        </p>
+        <div class="row about-actions">
+          <a class="btn btn-secondary" href="https://github.com/LeonidasLux" target="_blank" rel="noopener">GitHub</a>
+          <a class="btn btn-ghost btn-arrow" href={withBase('/rss.xml')}>RSS 订阅</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .about-container { max-width: 860px; }
+  .section-head { margin-bottom: var(--gap-xl); }
+  .about-card {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: var(--gap-xl);
+    align-items: start;
+  }
+  @media (max-width: 920px) {
+    .about-card { grid-template-columns: 1fr; }
+  }
+  .about-avatar { aspect-ratio: 4 / 5; }
+  .about-body h2 { font-size: 26px; margin-bottom: 6px; }
+  .about-detail { color: var(--color-muted); max-width: 60ch; margin: 0; }
+  .about-actions { flex-wrap: wrap; }
+</style>

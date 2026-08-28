@@ -1,0 +1,23 @@
+---
+---
+<!-- 明暗主题切换:与 <head> 内无闪烁脚本共用 localStorage 键 loong-theme。
+     图标显隐由 CSS 依据 html.dark 决定,JS 只负责切换类与记忆偏好 -->
+<button class="btn-icon" type="button" data-theme-toggle aria-label="切换明暗主题">
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3L17 7M7 17l-1.7 1.7"/></svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.2 14.6A8.5 8.5 0 0 1 9.4 3.8a8.5 8.5 0 1 0 10.8 10.8z"/></svg>
+</button>
+
+<style>
+  .icon-moon { display: none; }
+  html.dark .icon-sun { display: none; }
+  html.dark .icon-moon { display: block; }
+</style>
+
+<script>
+  const btn = document.querySelector<HTMLButtonElement>('[data-theme-toggle]');
+  btn?.addEventListener('click', () => {
+    const dark = !document.documentElement.classList.contains('dark');
+    document.documentElement.classList.toggle('dark', dark);
+    try { localStorage.setItem('loong-theme', dark ? 'dark' : 'light'); } catch (_) {}
+  });
+</script>

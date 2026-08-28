@@ -1,0 +1,22 @@
+---
+// 标签云:接收已聚合的 TagInfo 列表,纯展示。
+import { withBase } from '../lib/url';
+import type { TagInfo } from '../lib/tags';
+
+interface Props {
+  tags: TagInfo[];
+}
+const { tags } = Astro.props;
+---
+<div class="tag-cloud">
+  {
+    tags.map((t) => (
+      <a class="tag" href={withBase(`/tags/${t.name}`)}>{t.name} <span class="count">{t.count}</span></a>
+    ))
+  }
+</div>
+
+<style>
+  .tag-cloud { display: flex; flex-wrap: wrap; gap: var(--gap-xs); }
+  .count { opacity: 0.7; margin-left: 2px; }
+</style>

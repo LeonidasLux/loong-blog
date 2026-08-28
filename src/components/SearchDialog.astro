@@ -1,0 +1,179 @@
+---
+// Pagefind 全文搜索弹窗:构建时生成索引(见 package.json build 脚本),
+// 前端动态加载 pagefind.js(带 base 前缀)。未生成索引时优雅降级提示。
+---
+<div class="search-dialog" id="search-dialog" hidden role="dialog" aria-modal="true" aria-label="搜索">
+  <div class="search-box">
+    <div class="search-input-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-3.8-3.8" /></svg>
+      <input id="search-input" type="search" placeholder="搜索文章与随笔…" aria-label="搜索关键词" autocomplete="off" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </div>
+</div>
+
+<script>
+  interface PagefindResult {
+    data: () => Promise<{ url: string; meta?: { title?: string }; excerpt?: string }>;
+  }
+  interface PagefindModule {
+    search: (q: string) => Promise<{ results: PagefindResult[] }>;
+  }
+
+  const dialog = document.getElementById('search-dialog') as HTMLElement | null;
+  const input = document.getElementById('search-input') as HTMLInputElement | null;
+  const results = document.getElementById('search-results') as HTMLElement | null;
+  const base = import.meta.env.BASE_URL;
+
+  let pagefindLoaded: Promise<PagefindModule | null> | null = null;
+
+  function loadPagefind(): Promise<PagefindModule | null> {
+    if (!pagefindLoaded) {
+      pagefindLoaded = import(/* @vite-ignore */ `${base}pagefind/pagefind.js`).catch(() => null);
+    }
+    return pagefindLoaded;
+  }
+
+  function esc(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /** Pagefind 索引内 URL 是相对路径,统一补上 base 前缀为站内绝对路径 */
+  function absUrl(u: string): string {
+    if (u.startsWith(base) || u.startsWith('http')) return u;
+    return base + u.replace(/^\//, '');
+  }
+
+  async function runSearch(q: string): Promise<void> {
+    if (!results || !input) return;
+    const pf = await loadPagefind();
+    const trimmed = q.trim();
+    if (!pf) {
+      results.innerHTML = '<div class="search-empty">搜索索引不可用——请先运行 pnpm build 生成 pagefind 索引。</div>';
+      return;
+    }
+    if (!trimmed) {
+      results.innerHTML = '<div class="search-empty">输入关键词,搜索全部文章与随笔。</div>';
+      return;
+    }
+    const search = await pf.search(trimmed);
+    if (!search.results.length) {
+      results.innerHTML = `<div class="search-empty">未找到与「${esc(trimmed)}」相关的内容</div>`;
+      return;
+    }
+    const data = await Promise.all(search.results.slice(0, 8).map((r) => r.data()));
+    results.innerHTML = data
+      .map(
+        ({ url, meta, excerpt }) =>
+          `<a class="search-result" href="${esc(absUrl(url))}">` +
+          `<div class="sr-title">${esc(meta?.title ?? url)}</div>` +
+          (excerpt ? `<div class="sr-meta">${excerpt}</div>` : '') +
+          `</a>`,
+      )
+      .join('');
+  }
+
+  function openSearch(): void {
+    if (!dialog || !input) return;
+    dialog.hidden = false;
+    input.value = '';
+    if (results) results.innerHTML = '<div class="search-empty">输入关键词,搜索全部文章与随笔。</div>';
+    setTimeout(() => input.focus(), 30);
+  }
+
+  function closeSearch(): void {
+    if (!dialog) return;
+    dialog.hidden = true;
+  }
+
+  document.querySelector('[data-open-search]')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openSearch();
+  });
+
+  if (dialog) {
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) closeSearch();
+    });
+  }
+
+  if (input) {
+    input.addEventListener('input', () => void runSearch(input.value));
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeSearch();
+      return;
+    }
+    const tag = document.activeElement?.tagName ?? '';
+    if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && !dialog?.hidden) {
+      e.preventDefault();
+      openSearch();
+    }
+  });
+</script>
+
+<style>
+  .search-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: color-mix(in oklch, var(--color-paper) 55%, transparent);
+    backdrop-filter: blur(4px);
+    display: grid;
+    align-items: start;
+    padding: 12vh 24px 24px;
+  }
+  .search-box {
+    max-width: 640px;
+    width: 100%;
+    margin-inline: auto;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+  }
+  .search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .search-input-wrap svg { width: 18px; height: 18px; color: var(--color-muted); flex-shrink: 0; }
+  .search-input-wrap input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 17px;
+    color: var(--color-ink);
+    outline: none;
+  }
+  .search-input-wrap input::placeholder { color: var(--color-muted); }
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border: 1px solid var(--color-line);
+    padding: 2px 6px;
+    color: var(--color-muted);
+    flex-shrink: 0;
+  }
+  .search-results { max-height: 50vh; overflow: auto; padding: 6px 0; }
+  .search-result {
+    display: block;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .search-result:hover { background: var(--color-ink-soft); }
+  .sr-title { font-family: var(--font-display); font-size: 17px; }
+  .sr-meta { font-size: 12px; color: var(--color-muted); margin-top: 4px; }
+  .sr-meta mark { background: var(--color-accent-soft); color: var(--color-accent); padding: 0 2px; }
+  .search-empty {
+    padding: 28px 18px;
+    color: var(--color-muted);
+    text-align: center;
+    font-size: 14px;
+  }
+</style>

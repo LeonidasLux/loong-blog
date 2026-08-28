@@ -1,0 +1,52 @@
+---
+// 标签页:按主题浏览,展示该标签下的全部文章与随笔。
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { sortByDate, withoutDrafts, type AnyPost } from '../../lib/tags';
+
+interface Props {
+  tag: string;
+}
+
+export const getStaticPaths = (async () => {
+  const [articles, notes] = await Promise.all([
+    getCollection('articles'),
+    getCollection('notes'),
+  ]);
+  const all: AnyPost[] = [...articles, ...notes];
+  const tagSet = new Set<string>();
+  for (const p of all) for (const t of p.data.tags ?? []) tagSet.add(t);
+  return [...tagSet].map((tag) => ({ params: { tag }, props: { tag } }));
+}) satisfies GetStaticPaths;
+
+const { tag } = Astro.props;
+const [articles, notes] = await Promise.all([
+  getCollection('articles'),
+  getCollection('notes'),
+]);
+const all = sortByDate(withoutDrafts([...articles, ...notes]));
+const posts = all.filter((p) => (p.data.tags ?? []).includes(tag));
+---
+<BaseLayout
+  title={`标签:${tag} · loong-blog`}
+  description={`浏览标签「${tag}」下的全部文章与随笔。`}
+>
+  <div class="container tagpage-container">
+    <header class="section-head">
+      <p class="eyebrow">标签 · TAGS</p>
+      <h1>{tag}</h1>
+      <p class="lead">标签「{tag}」下的全部内容,共 {posts.length} 篇。</p>
+    </header>
+
+    <div class="tag-post-list">
+      {posts.map((post) => <PostCard post={post} />)}
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .tagpage-container { max-width: 800px; }
+  .section-head { margin-bottom: var(--gap-xl); }
+</style>

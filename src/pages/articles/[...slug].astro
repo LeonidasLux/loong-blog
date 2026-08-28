@@ -1,0 +1,118 @@
+---
+// 文章详情页:文章含 TOC / 系列导航 / 上一篇下一篇 / giscus 评论。
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Toc from '../../components/Toc.astro';
+import SeriesNav from '../../components/SeriesNav.astro';
+import Giscus from '../../components/Giscus.astro';
+import { formatDateCN } from '../../lib/date';
+import { estimateReadTime } from '../../lib/reading';
+import { postHref, withBase } from '../../lib/url';
+import { sortByDate, withoutDrafts } from '../../lib/tags';
+
+interface Props {
+  entry: CollectionEntry<'articles'>;
+}
+
+export const getStaticPaths = (async () => {
+  const articles = await getCollection('articles');
+  return articles.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const p = entry.data;
+const site = import.meta.env.SITE ?? '/';
+
+const published = withoutDrafts(await getCollection('articles'));
+const ordered = sortByDate(published);
+const idx = ordered.findIndex((x) => x.id === entry.id);
+const newer = ordered[idx - 1];
+const older = ordered[idx + 1];
+
+const sameSeries = p.series
+  ? published
+      .filter((x) => x.data.series === p.series)
+      .sort((a, b) => (a.data.seriesOrder ?? 99) - (b.data.seriesOrder ?? 99))
+  : [];
+const seriesTotal = sameSeries.length;
+const readMinutes = estimateReadTime(entry.body);
+
+const href = postHref('articles', entry.id);
+const canonicalUrl = new URL(href, site).toString();
+const kicker = p.series
+  ? `SERIES · ${p.series} · ${p.seriesOrder ?? '?'}/${seriesTotal}`
+  : '文章 · ARTICLE';
+---
+<BaseLayout
+  title={`${p.title} · loong-blog`}
+  description={p.description}
+  canonical={canonicalUrl}
+  ogType="article"
+>
+  <div class="container">
+    <div class="article-layout">
+      <article>
+        <header class="article-header">
+          <p class="eyebrow">{kicker}</p>
+          <h1>{p.title}</h1>
+          {p.description && <p class="lead">{p.description}</p>}
+          <div class="article-meta-row">
+            <time class="meta num" datetime={p.date.toISOString()}>{formatDateCN(p.date)}</time>
+            <span class="meta">{readMinutes} 分钟阅读</span>
+            {p.tags.length > 0 && (
+              <span class="tags-inline">
+                {p.tags.map((t) => (
+                  <a class="tag" href={withBase(`/tags/${t}`)}>{t}</a>
+                ))}
+              </span>
+            )}
+          </div>
+        </header>
+
+        <div class="prose">
+          <Content />
+        </div>
+
+        {sameSeries.length > 1 && (
+          <SeriesNav
+            seriesName={p.series!}
+            currentSlug={entry.id}
+            posts={sameSeries.map((x) => ({ slug: x.id, title: x.data.title, seriesOrder: x.data.seriesOrder }))}
+          />
+        )}
+
+        <Giscus term={href} />
+      </article>
+
+      <Toc headings={headings} />
+    </div>
+
+    <nav class="prevnext" aria-label="文章切换">
+      {older && (
+        <a href={postHref('articles', older.id)}>
+          <span class="dir">← 上一篇</span>
+          <h3>{older.data.title}</h3>
+        </a>
+      )}
+      {!older && <span></span>}
+      {newer && (
+        <a class="prevnext-next" href={postHref('articles', newer.id)}>
+          <span class="dir">下一篇 →</span>
+          <h3>{newer.data.title}</h3>
+        </a>
+      )}
+      {!newer && <span></span>}
+    </nav>
+  </div>
+</BaseLayout>
+
+<style>
+  .tags-inline { display: inline-flex; gap: var(--gap-xs); flex-wrap: wrap; }
+  .prevnext-next { text-align: right; }
+  .prevnext-next .dir { justify-content: flex-end; }
+</style>

@@ -1,0 +1,70 @@
+---
+// 随笔详情页:极简版,无 TOC、无上一篇下一篇。
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Giscus from '../../components/Giscus.astro';
+import { formatDateCN } from '../../lib/date';
+import { postHref, withBase } from '../../lib/url';
+
+interface Props {
+  entry: CollectionEntry<'notes'>;
+}
+
+export const getStaticPaths = (async () => {
+  const notes = await getCollection('notes');
+  return notes.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const p = entry.data;
+const site = import.meta.env.SITE ?? '/';
+const href = postHref('notes', entry.id);
+const canonicalUrl = new URL(href, site).toString();
+---
+<BaseLayout
+  title={`${p.title} · loong-blog`}
+  description={p.description}
+  canonical={canonicalUrl}
+  ogType="article"
+>
+  <div class="container note-container">
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">随笔 · NOTE</p>
+        <h1 class="note-title">{p.title}</h1>
+        <div class="article-meta-row">
+          <time class="meta num" datetime={p.date.toISOString()}>{formatDateCN(p.date)}</time>
+          {p.tags.length > 0 && (
+            <span class="tags-inline">
+              {p.tags.map((t) => (
+                <a class="tag" href={withBase(`/tags/${t}`)}>{t}</a>
+              ))}
+            </span>
+          )}
+        </div>
+      </header>
+
+      <div class="prose">
+        <Content />
+      </div>
+
+      <Giscus term={href} />
+
+      <p class="back-link">
+        <a class="btn btn-ghost btn-arrow" href={withBase('/')}>返回首页</a>
+      </p>
+    </article>
+  </div>
+</BaseLayout>
+
+<style>
+  .note-container { max-width: 760px; }
+  .note-title { font-size: clamp(28px, 4vw, 40px); }
+  .tags-inline { display: inline-flex; gap: var(--gap-xs); flex-wrap: wrap; }
+  .back-link { margin-top: var(--gap-xl); }
+</style>

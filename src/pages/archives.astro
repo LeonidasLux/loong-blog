@@ -1,0 +1,67 @@
+---
+// 归档页:全部文章与随笔,按年份倒序排列。
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { formatDate, yearOf } from '../lib/date';
+import { postHref } from '../lib/url';
+import { sortByDate, withoutDrafts } from '../lib/tags';
+
+const [articles, notes] = await Promise.all([
+  getCollection('articles'),
+  getCollection('notes'),
+]);
+const all = sortByDate(withoutDrafts([...articles, ...notes]));
+
+const yearMap = new Map<string, typeof all>();
+for (const post of all) {
+  const y = yearOf(post.data.date);
+  const list = yearMap.get(y) ?? [];
+  list.push(post);
+  yearMap.set(y, list);
+}
+const years = [...yearMap.keys()].sort((a, b) => b.localeCompare(a));
+---
+<BaseLayout
+  title="归档 · loong-blog"
+  description="全部文章与随笔,按年份排列。"
+>
+  <div class="container archives-container">
+    <header class="section-head">
+      <p class="eyebrow">归档 · ARCHIVE</p>
+      <h1>归档</h1>
+      <p class="lead">全部文章与随笔,按年份排列。</p>
+    </header>
+
+    {years.map((year) => (
+      <section class="archive-year" aria-label={`${year} 年`}>
+        <h2 class="archive-year-title num">{year}</h2>
+        {yearMap.get(year)!.map((post) => (
+          <div class="archive-item">
+            <span class="meta num archive-date">{formatDate(post.data.date).slice(5)}</span>
+            <a href={postHref(post.collection, post.id)}>{post.data.title}</a>
+            <span class="tag">{post.collection === 'articles' ? '文章' : '随笔'}</span>
+          </div>
+        ))}
+      </section>
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  .archives-container { max-width: 800px; }
+  .section-head { margin-bottom: var(--gap-xl); }
+  .archive-year { margin-bottom: var(--gap-xl); }
+  .archive-year-title { font-size: 28px; margin-bottom: 8px; }
+  .archive-item {
+    display: flex;
+    gap: var(--gap-md);
+    align-items: baseline;
+    padding: 14px 0;
+    border-top: 1px solid var(--color-line);
+    flex-wrap: wrap;
+  }
+  .archive-date { min-width: 72px; }
+  .archive-item a { font-family: var(--font-display); font-size: 17px; }
+  .archive-item a:hover { box-shadow: inset 0 -1px 0 var(--color-accent); }
+  .archive-item .tag { margin-left: auto; }
+</style>
