@@ -1,0 +1,51 @@
+---
+// 标签索引页:全站标签一览(标签 + 计数),点击进入单标签页。
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { aggregateTags, sortByDate, withoutDrafts } from '../../lib/tags';
+import { withBase } from '../../lib/url';
+
+const [articles, notes] = await Promise.all([
+  getCollection('articles'),
+  getCollection('notes'),
+]);
+const all = sortByDate(withoutDrafts([...articles, ...notes]));
+const tags = aggregateTags(all);
+---
+<BaseLayout
+  title="标签 · loong-blog"
+  description="全站标签一览,按主题聚合文章与随笔。"
+>
+  <div class="container tagpage-container">
+    <header class="section-head">
+      <p class="eyebrow">标签 · TAGS</p>
+      <h1>标签</h1>
+      <p class="lead">全站共 {tags.length} 个标签,按主题聚合文章与随笔。</p>
+    </header>
+
+    <section class="tagdirect" aria-label="标签列表">
+      {
+        tags.map((t) => (
+          <a class="tag tagdirect-item" href={withBase(`/tags/${t.name}`)}>{t.name} <span class="count">{t.count}</span></a>
+        ))
+      }
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .tagpage-container { max-width: 800px; margin-inline: auto; }
+  .section-head { padding-top: clamp(24px, 3.5vw, 40px); margin-bottom: var(--gap-lg); }
+  .section-head h1 { font-size: clamp(36px, 5vw, 56px); }
+  .section-head .lead { margin-top: 10px; font-size: 15px; }
+  .tagdirect { display: flex; flex-wrap: wrap; gap: var(--gap-sm); }
+  .tagdirect .tag {
+    font-size: 14px;
+    padding: 8px 14px;
+    border-color: var(--color-line);
+    color: var(--color-ink);
+    gap: 6px;
+  }
+  a.tagdirect-item:hover { border-color: var(--color-ink); box-shadow: inset 0 -2px 0 var(--color-accent); }
+  .tagdirect .count { color: var(--color-muted); font-family: var(--font-mono); }
+</style>

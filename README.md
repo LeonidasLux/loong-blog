@@ -4,7 +4,7 @@
 
 - 在线地址:`https://LeonidasLux.github.io/loong-blog/`
 - 开发规划见 [`PLAN.md`](./PLAN.md)
-- 视觉原型:`loong-blog-prototype.html`(editorial-monocle 设计方向)
+- 视觉原型:`Web-Prototype/` 目录(editorial-monocle 设计方向)
 
 ## 技术栈
 
@@ -37,12 +37,9 @@ pnpm check          # astro 类型检查(astro check)
 ---
 title: '我的第一篇文章'
 date: 2026-08-28
-description: '一句话摘要,展示在列表页。'
+description: '一句话摘要,用于详情页导语与 SEO 描述。'
 tags: ['Astro', '前端']
-series: '系列名'      # 可选:所属系列
-seriesOrder: 1        # 可选:系列内序号(从 1 起)
 draft: false          # 可选:true 则不发布
-cover: ''             # 可选:封面图
 ---
 
 正文用 Markdown 写。二级/三级标题会自动生成目录(TOC)。
@@ -58,10 +55,8 @@ cover: ''             # 可选:封面图
 |---|---|---|---|---|
 | `title` | string | ✅ | ✅ | 标题 |
 | `date` | string(YYYY-MM-DD) | ✅ | ✅ | 发布日期 |
-| `description` | string | 可选 | 可选 | 列表页摘要 |
+| `description` | string | 可选 | 可选 | 详情页导语 / SEO 描述 |
 | `tags` | string[] | ✅ | ✅ | 标签 |
-| `series` | string | 可选 | — | 系列名 |
-| `seriesOrder` | number | 可选 | — | 系列内序号 |
 | `draft` | boolean | 可选 | 可选 | 草稿不发布 |
 
 > 字段校验在构建期自动执行(Content Layer API + Zod),类型写错会直接报错。
@@ -101,9 +96,9 @@ src/
 ├── content/articles/       # 文章 Markdown
 ├── content/notes/          # 随笔 Markdown
 ├── layouts/BaseLayout.astro# 全站骨架(导航/主题切换/SEO)
-├── components/             # PostCard / Toc / SeriesNav / ThemeToggle / SearchDialog / Giscus / TagList
+├── components/             # PostCard / Toc / ThemeToggle / SearchDialog / Giscus / TagList / ActivityHeatmap
 ├── lib/                    # 纯逻辑(date/url/tags/reading)
-├── pages/                  # 首页、归档、标签、系列、关于、RSS、详情页
+├── pages/                  # 首页、归档、标签、关于、RSS、详情页
 └── styles/                 # CSS 按职责拆分(theme/base/typography/utilities/global)
 ```
 

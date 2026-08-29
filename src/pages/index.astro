@@ -1,10 +1,12 @@
 ---
-// 首页:双类型列表(Tab 切换)+ 侧栏(标签/系列/关于)。
+// 首页:双类型列表(Tab 切换)+ 侧栏(更新分布热力图 / 标签 / 关于)。
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PostCard from '../components/PostCard.astro';
 import TagList from '../components/TagList.astro';
+import ActivityHeatmap from '../components/ActivityHeatmap.astro';
 import { aggregateTags, sortByDate, withoutDrafts } from '../lib/tags';
+import { formatDate } from '../lib/date';
 import { withBase } from '../lib/url';
 
 const [articles, notes] = await Promise.all([
@@ -19,23 +21,12 @@ const articleList = sortByDate([...publishedArticles]);
 const noteList = sortByDate([...publishedNotes]);
 const tags = aggregateTags(all);
 
-// 系列聚合(侧栏)
-const seriesMap = new Map<string, number>();
-for (const a of publishedArticles) {
-  if (a.data.series) seriesMap.set(a.data.series, (seriesMap.get(a.data.series) ?? 0) + 1);
-}
-const seriesList = [...seriesMap.entries()]
-  .map(([name, count]) => ({ name, count }))
-  .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
-
-// 系列徽标文案:如「Astro 7 上手 · 1/3」(仅文章有 series 字段)
-function seriesLabel(post: (typeof all)[number]): string | undefined {
-  if (post.collection !== 'articles') return undefined;
-  const { series, seriesOrder } = post.data;
-  if (!series) return undefined;
-  const total = seriesMap.get(series) ?? 1;
-  return `${series} · ${seriesOrder ?? '?'}/${total}`;
-}
+// 热力图数据:全部已发布内容的日期 / 标题 / 类型
+const activityPosts = all.map((p) => ({
+  date: formatDate(p.data.date),
+  title: p.data.title,
+  kind: p.collection === 'articles' ? '文章' : '随笔',
+}));
 ---
 <BaseLayout>
   <div class="container">
@@ -55,35 +46,25 @@ function seriesLabel(post: (typeof all)[number]): string | undefined {
         </div>
 
         <div class="list-pane" data-pane="all">
-          {all.map((post) => <PostCard post={post} seriesLabel={seriesLabel(post)} />)}
+          {all.map((post) => <PostCard post={post} />)}
         </div>
         <div class="list-pane" data-pane="articles" hidden>
-          {articleList.map((post) => <PostCard post={post} seriesLabel={seriesLabel(post)} />)}
+          {articleList.map((post) => <PostCard post={post} />)}
         </div>
         <div class="list-pane" data-pane="notes" hidden>
-          {noteList.map((post) => <PostCard post={post} seriesLabel={seriesLabel(post)} />)}
+          {noteList.map((post) => <PostCard post={post} />)}
         </div>
       </section>
 
       <!-- 侧栏 -->
       <aside class="sidebar">
         <div class="sidebar-block">
+          <ActivityHeatmap posts={activityPosts} />
+        </div>
+        <div class="sidebar-block">
           <h3 class="sidebar-title">标签</h3>
           <TagList tags={tags} />
         </div>
-        {seriesList.length > 0 && (
-          <div class="sidebar-block">
-            <h3 class="sidebar-title">系列</h3>
-            <nav class="series-list" aria-label="文章系列">
-              {seriesList.map((s) => (
-                <a href={withBase('/series')}>
-                  <span>{s.name}</span>
-                  <span class="meta">{s.count} 篇</span>
-                </a>
-              ))}
-            </nav>
-          </div>
-        )}
         <div class="sidebar-block side-about">
           <h3 class="sidebar-title">关于</h3>
           <p>你好,我是 LeonidasLux。技术实践者,偶尔写点长文。这个博客托管在 GitHub Pages,零后端、静态优先。</p>
@@ -121,22 +102,25 @@ function seriesLabel(post: (typeof all)[number]): string | undefined {
 </script>
 
 <style>
-  /* ── hero ── */
+  /* ── hero(紧凑版,对齐原型 home.html) ── */
   .blog-hero {
-    padding-block: clamp(56px, 9vw, 120px) clamp(40px, 6vw, 64px);
+    padding-block: clamp(24px, 3.5vw, 40px) clamp(16px, 2.2vw, 26px);
     border-bottom: 1px solid var(--color-line);
-    margin-bottom: var(--gap-xl);
+    margin-bottom: var(--gap-md);
   }
-  .blog-hero h1 { font-size: var(--fs-hero); margin-bottom: var(--gap-md); }
-  .home-grid { padding-bottom: clamp(48px, 7vw, 96px); }
+  .blog-hero .eyebrow { margin-bottom: 10px; font-size: 11px; }
+  .blog-hero h1 { font-size: clamp(28px, 3.6vw, 40px); margin-bottom: 6px; line-height: 1.08; }
+  .blog-hero .lead { font-size: 15px; line-height: 1.55; }
+
+  .home-grid { gap: var(--gap-lg); padding-bottom: clamp(32px, 4vw, 48px); }
 
   /* ── tabs ── */
-  .list-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-line); margin-bottom: var(--gap-lg); }
+  .list-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-line); margin-bottom: var(--gap-md); }
   .tab {
     background: none;
     border: 0;
     padding: 12px 4px;
-    margin-right: 28px;
+    margin-right: 22px;
     font-size: 13px;
     color: var(--color-muted);
     border-bottom: 2px solid transparent;
@@ -149,34 +133,24 @@ function seriesLabel(post: (typeof all)[number]): string | undefined {
   .tab .count { opacity: 0.7; margin-left: 4px; }
 
   /* ── 侧栏 ── */
-  .sidebar { position: sticky; top: 88px; }
-  .sidebar-block { padding-bottom: var(--gap-lg); margin-bottom: var(--gap-lg); border-bottom: 1px solid var(--color-line); }
+  .sidebar { position: sticky; top: 76px; }
+  .sidebar-block { padding-bottom: var(--gap-md); margin-bottom: var(--gap-md); border-bottom: 1px solid var(--color-line); }
   .sidebar-title {
     font-family: var(--font-mono);
-    font-size: 12px;
-    letter-spacing: 0.08em;
+    font-size: 11px;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--color-muted);
-    margin-bottom: 14px;
+    margin-bottom: 10px;
     font-weight: 500;
   }
-  .series-list a {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 8px 0;
-    font-size: 14px;
-    color: var(--color-ink);
-    border-bottom: 1px dashed var(--color-line);
-    gap: var(--gap-xs);
-  }
-  .series-list a:hover { box-shadow: inset 0 -1px 0 var(--color-accent); }
-  .side-about p { font-size: 14px; color: var(--color-muted); line-height: 1.6; margin: 0 0 14px; }
+  .side-about p { font-size: 13px; color: var(--color-muted); line-height: 1.6; margin: 0 0 10px; }
+  @media (max-width: 920px) { .sidebar { position: static; } }
 
   /* ── 订阅条 ── */
   .subscribe { border-top: 1px solid var(--color-line); }
-  .subscribe .container { text-align: center; padding-block: clamp(48px, 7vw, 80px); }
-  .subscribe-eyebrow { color: var(--color-muted); }
-  .subscribe-title { font-size: clamp(24px, 3vw, 34px); margin-bottom: 10px; }
-  .subscribe-lead { margin: 0 auto 24px; }
+  .subscribe .container { text-align: center; padding-block: clamp(28px, 3.5vw, 44px); }
+  .subscribe-eyebrow { color: var(--color-muted); margin-bottom: 8px; font-size: 11px; }
+  .subscribe-title { font-size: clamp(21px, 2.4vw, 27px); margin-bottom: 6px; }
+  .subscribe-lead { margin: 0 auto 16px; font-size: 15px; }
 </style>

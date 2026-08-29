@@ -1,47 +1,39 @@
 ---
-// 列表卡片:文章 / 随笔共用。纯展示组件,数据由页面层传入。
+// 列表卡片:文章 / 随笔共用,按原型紧凑结构(日期·类型 + 标签同行在上,标题在下)。
+// 纯展示组件,数据由页面层传入。
 import type { AnyPost } from '../lib/tags';
 import { formatDate } from '../lib/date';
 import { postHref, withBase } from '../lib/url';
 
 interface Props {
   post: AnyPost;
-  /** 系列徽标文案,如「Astro 7 上手 · 1/3」;由页面层计算 */
-  seriesLabel?: string;
 }
 
-const { post, seriesLabel } = Astro.props;
+const { post } = Astro.props;
 const p = post.data;
 const isArticle = post.collection === 'articles';
 const typeLabel = isArticle ? '文章' : '随笔';
 const href = postHref(post.collection, post.id);
 ---
 <article class="post-item">
-  <span class="meta post-date">{formatDate(p.date)} · {typeLabel}</span>
+  <div class="post-meta-row">
+    <span class="meta post-date">{formatDate(p.date)} · {typeLabel}</span>
+    {
+      p.tags.map((t) => (
+        <a class="tag" href={withBase(`/tags/${t}`)}>{t}</a>
+      ))
+    }
+  </div>
   <h3 class="post-title"><a href={href}>{p.title}</a></h3>
-  {
-    p.description && <p class="post-dek">{p.description}</p>
-  }
-  {
-    (p.tags.length > 0 || seriesLabel) && (
-      <div class="post-tags">
-        {p.tags.map((t) => (
-          <a class="tag" href={withBase(`/tags/${t}`)}>{t}</a>
-        ))}
-        {seriesLabel && <span class="tag series-badge">{seriesLabel}</span>}
-      </div>
-    )
-  }
 </article>
 
 <style>
-  .post-item { padding: 26px 0; border-top: 1px solid var(--color-line); }
+  .post-item { padding: 16px 0; border-top: 1px solid var(--color-line); }
   .post-item:last-child { border-bottom: 1px solid var(--color-line); }
-  .post-date { display: block; margin-bottom: 10px; }
-  .post-title { font-size: clamp(20px, 2vw, 26px); }
+  .post-date { font-size: 12px; }
+  .post-title { font-size: clamp(18px, 1.8vw, 22px); line-height: 1.3; }
   .post-title a { color: var(--color-ink); }
   .post-title a:hover { box-shadow: inset 0 -2px 0 var(--color-accent); }
-  .post-dek { margin: 8px 0 0; color: var(--color-muted); font-size: 15px; max-width: 58ch; }
-  .post-tags { margin-top: 14px; display: flex; gap: var(--gap-xs); flex-wrap: wrap; align-items: center; }
-  .series-badge { color: var(--color-ink); }
+  .post-meta-row { display: flex; gap: var(--gap-sm); flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .post-meta-row .tag { padding: 3px 9px; font-size: 11px; }
 </style>

@@ -2,8 +2,6 @@
 title: '在 GitHub Pages 上免费托管你的博客'
 date: 2026-07-30
 tags: ['部署', 'Astro']
-series: 'Astro 7 上手'
-seriesOrder: 3
 description: '静态站托管,GitHub Pages 是成本最低的选项。用 Actions 官方模式部署,而不是把构建产物直接推到分支。'
 ---
 

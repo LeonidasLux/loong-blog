@@ -2,8 +2,6 @@
 title: 'Astro 7 内容层:Content Layer API 从零上手'
 date: 2026-08-21
 tags: ['Astro', '前端']
-series: 'Astro 7 上手'
-seriesOrder: 1
 description: 'Astro 7 移除了 legacy content collections,Content Layer API 成为唯一的内容管理方式。这篇文章用一个真实博客的例子,走完定义 schema、加载内容、类型安全查询的全流程。'
 ---
 
@@ -27,8 +25,6 @@ const articles = defineCollection({
     title: z.string(),
     date: z.coerce.date(),
     tags: z.array(z.string()).default([]),
-    series: z.string().optional(),
-    seriesOrder: z.number().optional(),
     draft: z.boolean().default(false),
   }),
 });
@@ -36,7 +32,7 @@ const articles = defineCollection({
 export const collections = { articles, notes };
 ```
 
-字段都被显式声明:`title` 必须是字符串,`date` 会被自动转成 Date,`series` 与 `seriesOrder` 支撑系列文章的聚合与排序。随笔集合的 schema 更简,只有 title、date、tags、draft 四项。
+字段都被显式声明:`title` 必须是字符串,`date` 会被自动转成 Date,`tags` 默认空数组,`draft` 控制是否发布。随笔集合的 schema 更简,只有 title、date、tags、draft 四项。
 
 ## 用 glob() 加载内容
 

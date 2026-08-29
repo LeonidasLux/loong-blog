@@ -14,13 +14,7 @@ const articles = defineCollection({
     date: z.coerce.date(),
     description: z.string().optional(),
     tags: z.array(z.string()).default([]),
-    /** 系列文章:系列名 */
-    series: z.string().optional(),
-    /** 系列内序号(从 1 起) */
-    seriesOrder: z.number().optional(),
     draft: z.boolean().default(false),
-    /** 封面图相对路径(可选,暂未展示) */
-    cover: z.string().optional(),
   }),
 });
 

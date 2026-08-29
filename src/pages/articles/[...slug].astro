@@ -1,10 +1,9 @@
 ---
-// 文章详情页:文章含 TOC / 系列导航 / 上一篇下一篇 / giscus 评论。
+// 文章详情页:文章含 TOC / 上一篇下一篇 / giscus 评论。
 import { getCollection, render, type CollectionEntry } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Toc from '../../components/Toc.astro';
-import SeriesNav from '../../components/SeriesNav.astro';
 import Giscus from '../../components/Giscus.astro';
 import { formatDateCN } from '../../lib/date';
 import { estimateReadTime } from '../../lib/reading';
@@ -34,19 +33,11 @@ const idx = ordered.findIndex((x) => x.id === entry.id);
 const newer = ordered[idx - 1];
 const older = ordered[idx + 1];
 
-const sameSeries = p.series
-  ? published
-      .filter((x) => x.data.series === p.series)
-      .sort((a, b) => (a.data.seriesOrder ?? 99) - (b.data.seriesOrder ?? 99))
-  : [];
-const seriesTotal = sameSeries.length;
 const readMinutes = estimateReadTime(entry.body);
 
 const href = postHref('articles', entry.id);
 const canonicalUrl = new URL(href, site).toString();
-const kicker = p.series
-  ? `SERIES · ${p.series} · ${p.seriesOrder ?? '?'}/${seriesTotal}`
-  : '文章 · ARTICLE';
+const kicker = '文章 · ARTICLE';
 ---
 <BaseLayout
   title={`${p.title} · loong-blog`}
@@ -63,7 +54,7 @@ const kicker = p.series
           {p.description && <p class="lead">{p.description}</p>}
           <div class="article-meta-row">
             <time class="meta num" datetime={p.date.toISOString()}>{formatDateCN(p.date)}</time>
-            <span class="meta">{readMinutes} 分钟阅读</span>
+            <span class="meta">约 {readMinutes} 分钟阅读</span>
             {p.tags.length > 0 && (
               <span class="tags-inline">
                 {p.tags.map((t) => (
@@ -77,14 +68,6 @@ const kicker = p.series
         <div class="prose">
           <Content />
         </div>
-
-        {sameSeries.length > 1 && (
-          <SeriesNav
-            seriesName={p.series!}
-            currentSlug={entry.id}
-            posts={sameSeries.map((x) => ({ slug: x.id, title: x.data.title, seriesOrder: x.data.seriesOrder }))}
-          />
-        )}
 
         <Giscus term={href} />
       </article>

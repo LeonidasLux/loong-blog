@@ -2,8 +2,6 @@
 title: 'Tailwind CSS v4 与 Astro 的正确集成方式'
 date: 2026-08-14
 tags: ['Tailwind', 'Astro']
-series: 'Astro 7 上手'
-seriesOrder: 2
 description: 'astro add tailwind 在 v4 时代已经不适用。CSS-first 配置、@theme 设计令牌与 class 暗色策略,一条路走通。'
 ---
 

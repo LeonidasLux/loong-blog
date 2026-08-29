@@ -5,6 +5,7 @@ import type { GetStaticPaths } from 'astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
 import { sortByDate, withoutDrafts, type AnyPost } from '../../lib/tags';
+import { withBase } from '../../lib/url';
 
 interface Props {
   tag: string;
@@ -43,10 +44,12 @@ const posts = all.filter((p) => (p.data.tags ?? []).includes(tag));
     <div class="tag-post-list">
       {posts.map((post) => <PostCard post={post} />)}
     </div>
+    <p class="back-to-tags"><a class="btn btn-ghost btn-arrow" href={withBase('/tags')}>全部标签</a></p>
   </div>
 </BaseLayout>
 
 <style>
-  .tagpage-container { max-width: 800px; }
-  .section-head { margin-bottom: var(--gap-xl); }
+  .tagpage-container { max-width: 800px; margin-inline: auto; }
+  .section-head { padding-top: clamp(24px, 3.5vw, 40px); margin-bottom: var(--gap-lg); }
+  .back-to-tags { margin-top: var(--gap-lg); }
 </style>

@@ -1,0 +1,318 @@
+---
+// 更新分布热力图:近 3/6/12 个月发布分布,纵轴周一至周日,对齐原型 home.html。
+// 数据经 define:vars 注入 <script>,纯客户端绘制;页面无 JS 时仅显示静态标题。
+// 样式用 is:global + .activity-block 前缀限定作用域(热力图的单元格/提示框均由 JS 动态创建,scoped 样式无法命中)。
+interface ActivityPost {
+  date: string; // YYYY-MM-DD
+  title: string;
+  kind: string; // '文章' | '随笔'
+}
+interface Props {
+  posts: ActivityPost[];
+}
+const { posts } = Astro.props;
+---
+<div class="activity-block">
+  <div class="activity-head">
+    <h3 class="sidebar-title">更新分布 · ACTIVITY</h3>
+    <span class="activity-count meta" id="activity-count">近 6 个月 · 0 次</span>
+  </div>
+  <div class="activity-ranges" role="group" aria-label="时间范围">
+    <button class="activity-range" type="button" data-range="3">3 个月</button>
+    <button class="activity-range is-active" type="button" data-range="6">6 个月</button>
+    <button class="activity-range" type="button" data-range="12">1 年</button>
+  </div>
+  <div class="activity-scroll" id="activity-scroll">
+    <div class="activity-inner">
+      <div class="activity-months" id="activity-months" aria-hidden="true"></div>
+      <div class="activity-main">
+        <div class="activity-days" aria-hidden="true">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div class="activity-grid" id="activity-grid" role="grid" aria-label="发布热力图,纵轴周一至周日"></div>
+      </div>
+    </div>
+  </div>
+  <p class="activity-hint">横向滚动查看完整时间轴</p>
+  <div class="activity-legend" aria-hidden="true">
+    <span class="lbl">少</span>
+    <span class="activity-sw"></span>
+    <span class="activity-sw s1"></span>
+    <span class="activity-sw s2"></span>
+    <span class="activity-sw s3"></span>
+    <span class="activity-sw s4"></span>
+    <span class="lbl">多</span>
+  </div>
+  <details class="activity-detail">
+    <summary>更新明细</summary>
+    <ul id="activity-detail-list"></ul>
+  </details>
+</div>
+
+<script define:vars={{ posts }} is:inline data-astro-rerun>
+  /* ---- 更新分布热力图(近 3/6/12 个月,纵轴周一至周日) ---- */
+  const actGrid = document.getElementById('activity-grid');
+  const actMonths = document.getElementById('activity-months');
+  const actCount = document.getElementById('activity-count');
+  const actDetail = document.getElementById('activity-detail-list');
+  const actScroll = document.getElementById('activity-scroll');
+  const today = new Date();
+  const CELL = 11; /* 单元格 10px + 间隙 1px */
+  const DAYW = 18; /* 星期标签列宽 + 与网格间隙 */
+
+  const actByDate = {};
+  for (const p of posts) (actByDate[p.date] = actByDate[p.date] || []).push(p);
+
+  function actIso(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function actDay(d) {
+    return Math.floor(d.getTime() / 86400000);
+  }
+  function actStartMonday(date) {
+    const d = new Date(date);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d;
+  }
+  function actAddMonths(date, n) {
+    const d = new Date(date);
+    const day = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + n);
+    d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    return d;
+  }
+  function actEmptyCell() {
+    const s = document.createElement('span');
+    s.className = 'acell';
+    s.setAttribute('aria-hidden', 'true');
+    return s;
+  }
+  function actTipsFor(btn) {
+    const val = document.createElement('div');
+    val.className = 'tval';
+    val.textContent = btn.dataset.title ?? '';
+    const sub = document.createElement('div');
+    sub.className = 'tsub';
+    sub.textContent = (btn.dataset.kind ?? '') + ' · 发布于 ' + (btn.dataset.date ?? '');
+    actTip.innerHTML = '';
+    actTip.appendChild(val);
+    actTip.appendChild(sub);
+  }
+  function actPosTip(btn) {
+    const r = btn.getBoundingClientRect();
+    actTip.style.left = Math.min(r.left + r.width - 6, window.innerWidth - 14) + 'px';
+    actTip.style.top = (r.top - 10 < 10 ? r.bottom + 6 : r.top - 10) + 'px';
+  }
+  function renderActivity(rangeMonths) {
+    if (!actGrid || !actMonths || !actCount || !actDetail) return;
+    const start = actStartMonday(actAddMonths(today, -rangeMonths));
+    const weeks = Math.ceil((actDay(today) - actDay(start) + 1) / 7);
+    const gridW = weeks * CELL - 2;
+    /* 月份标签 */
+    actMonths.innerHTML = '';
+    actMonths.style.width = gridW + DAYW + 'px';
+    let y = start.getFullYear();
+    let mo = start.getMonth();
+    let guard = 0;
+    while ((y < today.getFullYear() || (y === today.getFullYear() && mo <= today.getMonth())) && guard < 40) {
+      const first = new Date(y, mo, 1);
+      if (first >= start) {
+        const col = Math.floor((actDay(first) - actDay(start)) / 7);
+        const span = document.createElement('span');
+        span.textContent = mo + 1 + '月';
+        span.style.setProperty('--x', col * CELL + 'px');
+        actMonths.appendChild(span);
+      }
+      mo++;
+      if (mo === 12) { mo = 0; y++; }
+      guard++;
+    }
+    /* 单元格 */
+    actGrid.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for (let col = 0; col < weeks; col++) {
+      for (let row = 0; row < 7; row++) {
+        const idx = col * 7 + row;
+        const d = new Date(start.getTime() + idx * 86400000);
+        if (d > today) { frag.appendChild(actEmptyCell()); continue; }
+        const list = actByDate[actIso(d)] ?? [];
+        if (!list.length) { frag.appendChild(actEmptyCell()); continue; }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'acell hit is-hot-' + Math.min(list.length, 4);
+        btn.setAttribute('role', 'gridcell');
+        btn.dataset.date = actIso(d);
+        btn.dataset.kind = '发布 ' + list.length + ' 篇';
+        btn.dataset.title = list.length > 1 ? list.map((p) => p.title).join(' · ') : list[0].title;
+        btn.setAttribute('aria-label', actIso(d) + ' 发布 ' + list.length + ' 篇: ' + (list.length > 1 ? list.length + ' 篇内容' : list[0].title));
+        frag.appendChild(btn);
+      }
+    }
+    actGrid.appendChild(frag);
+    /* 明细 */
+    const inRange = posts
+      .filter((p) => p.date >= actIso(start) && p.date <= actIso(today))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    actDetail.innerHTML = '';
+    for (const p of inRange) {
+      const li = document.createElement('li');
+      const dd = document.createElement('span');
+      dd.className = 'd';
+      dd.textContent = p.date.slice(5);
+      const tt = document.createElement('span');
+      tt.textContent = p.kind + ' · ' + p.title;
+      li.appendChild(dd);
+      li.appendChild(tt);
+      actDetail.appendChild(li);
+    }
+    actCount.textContent = '近 ' + rangeMonths + ' 个月 · ' + inRange.length + ' 次';
+    actScroll?.classList.toggle('show-scroll', rangeMonths === 12);
+  }
+
+  /* tooltip 幂等:data-astro-rerun 会让脚本在每次 View Transitions 导航重新执行,先移除旧元素 */
+  document.getElementById('activity-tip')?.remove();
+  const actTip = document.createElement('div');
+  actTip.id = 'activity-tip';
+  actTip.className = 'atip';
+  actTip.hidden = true;
+  document.body.appendChild(actTip);
+
+  actGrid?.addEventListener('pointerover', (e) => {
+    const btn = e.target.closest('button.acell.hit');
+    if (!btn) { actTip.hidden = true; return; }
+    actTipsFor(btn);
+    actTip.hidden = false;
+    actPosTip(btn);
+  });
+  actGrid?.addEventListener('pointerleave', () => { actTip.hidden = true; });
+  actGrid?.addEventListener('focusin', (e) => {
+    const btn = e.target.closest('button.acell.hit');
+    if (!btn) return;
+    actTipsFor(btn);
+    actTip.hidden = false;
+    actPosTip(btn);
+  });
+  actGrid?.addEventListener('focusout', () => { actTip.hidden = true; });
+
+  document.querySelectorAll('.activity-range').forEach((r) => {
+    r.addEventListener('click', () => {
+      document.querySelectorAll('.activity-range').forEach((x) => x.classList.toggle('is-active', x === r));
+      renderActivity(parseInt(r.dataset.range ?? '6', 10));
+    });
+  });
+  renderActivity(6);
+</script>
+
+<style is:global>
+  /* 更新分布热力图(对齐原型 home.html,token 映射到全局设计令牌) */
+  .activity-block .sidebar-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .activity-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .activity-head .sidebar-title { margin-bottom: 0; }
+  .activity-count { font-size: 11px; }
+  .activity-ranges { display: inline-flex; border: 1px solid var(--color-line); margin-bottom: 12px; }
+  .activity-range {
+    background: none;
+    border: 0;
+    padding: 4px 9px;
+    font-size: 11px;
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+  }
+  .activity-range + .activity-range { border-left: 1px solid var(--color-line); }
+  .activity-range:hover { color: var(--color-ink); }
+  .activity-range.is-active { color: var(--color-ink); background: var(--color-ink-soft); }
+  .activity-scroll { overflow-x: auto; --cell: 10px; }
+  .activity-inner { min-width: max-content; }
+  .activity-months {
+    position: relative;
+    height: 14px;
+    margin-bottom: 2px;
+    padding-left: 18px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  .activity-months span { position: absolute; top: 0; left: var(--x, 0px); }
+  .activity-main { display: flex; gap: 6px; }
+  .activity-days {
+    width: 12px;
+    display: grid;
+    grid-template-rows: repeat(7, var(--cell));
+    gap: 1px;
+  }
+  .activity-days span {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--color-muted);
+    display: grid;
+    place-items: center;
+    line-height: 1;
+    height: var(--cell);
+  }
+  .activity-grid {
+    display: grid;
+    grid-template-rows: repeat(7, var(--cell));
+    grid-auto-flow: column;
+    grid-auto-columns: var(--cell);
+    gap: 1px;
+  }
+  .acell {
+    display: block;
+    width: var(--cell);
+    height: var(--cell);
+    padding: 0;
+    border: 0;
+    border-radius: 1px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--color-line);
+  }
+  .acell.is-hot-1 { box-shadow: none; background: color-mix(in oklch, var(--color-accent) 26%, transparent); }
+  .acell.is-hot-2 { box-shadow: none; background: color-mix(in oklch, var(--color-accent) 50%, transparent); }
+  .acell.is-hot-3 { box-shadow: none; background: color-mix(in oklch, var(--color-accent) 74%, transparent); }
+  .acell.is-hot-4 { box-shadow: none; background: var(--color-accent); }
+  .activity-legend { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+  .activity-legend .lbl { font-size: 10px; color: var(--color-muted); font-family: var(--font-mono); }
+  .activity-sw { width: 8px; height: 8px; box-shadow: inset 0 0 0 1px var(--color-line); }
+  .activity-sw.s1 { box-shadow: none; background: color-mix(in oklch, var(--color-accent) 26%, transparent); }
+  .activity-sw.s2 { box-shadow: none; background: color-mix(in oklch, var(--color-accent) 50%, transparent); }
+  .activity-sw.s3 { box-shadow: none; background: color-mix(in oklch, var(--color-accent) 74%, transparent); }
+  .activity-sw.s4 { box-shadow: none; background: var(--color-accent); }
+  .activity-hint { display: none; margin: 8px 0 0; font-size: 10px; color: var(--color-muted); font-family: var(--font-mono); }
+  .activity-scroll.show-scroll + .activity-hint { display: block; }
+  .activity-detail { margin-top: 12px; border-top: 1px solid var(--color-line); }
+  .activity-detail summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    padding: 8px 0 4px;
+  }
+  .activity-detail summary::-webkit-details-marker { display: none; }
+  .activity-detail ul { list-style: none; margin: 0 0 4px; padding: 0; }
+  .activity-detail li { display: flex; gap: 8px; font-size: 11px; color: var(--color-muted); padding: 4px 0; border-top: 1px dashed var(--color-line); }
+  .activity-detail li .d { font-family: var(--font-mono); flex-shrink: 0; }
+  .atip {
+    position: fixed;
+    z-index: 300;
+    max-width: 240px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+    padding: 8px 10px;
+    pointer-events: none;
+  }
+  .atip .tval { font-family: var(--font-display); font-size: 13px; color: var(--color-ink); line-height: 1.35; }
+  .atip .tsub { font-size: 11px; color: var(--color-muted); margin-top: 3px; font-family: var(--font-mono); }
+</style>

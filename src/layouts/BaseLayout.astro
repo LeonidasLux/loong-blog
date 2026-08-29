@@ -32,7 +32,6 @@ const navItems = [
   { text: '首页', href: withBase('/') },
   { text: '归档', href: withBase('/archives') },
   { text: '标签', href: withBase('/tags') },
-  { text: '系列', href: withBase('/series') },
   { text: '关于', href: withBase('/about') },
 ];
 
@@ -137,7 +136,7 @@ function isActive(href: string): boolean {
     letter-spacing: -0.01em;
     color: var(--color-ink);
   }
-  .nav-links { display: flex; gap: var(--gap-md); flex-wrap: wrap; }
+  .nav-links { display: flex; gap: var(--gap-lg); flex-wrap: wrap; }
   .nav-link { font-size: 14px; color: var(--color-muted); padding: 4px 0; }
   .nav-link:hover { color: var(--color-ink); }
   .nav-link.is-active { color: var(--color-ink); border-bottom: 1px solid var(--color-ink); }
@@ -149,9 +148,9 @@ function isActive(href: string): boolean {
     color: var(--color-muted);
     font-size: 13px;
     border-top: 1px solid var(--color-line);
-    margin-top: var(--gap-2xl);
+    margin-top: var(--gap-xl);
   }
   .pagefoot .row-between { flex-wrap: wrap; gap: var(--gap-md); }
-  .footer-links { gap: var(--gap-md); }
+  .footer-links { gap: var(--gap-lg); }
   .footer-links a:hover { color: var(--color-ink); }
 </style>

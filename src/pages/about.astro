@@ -24,6 +24,9 @@ import { withBase } from '../lib/url';
           <a class="btn btn-secondary" href="https://github.com/LeonidasLux" target="_blank" rel="noopener">GitHub</a>
           <a class="btn btn-ghost btn-arrow" href={withBase('/rss.xml')}>RSS 订阅</a>
         </div>
+        <div class="about-meta-line">
+          <span class="meta">Astro 7 · Tailwind v4 · GitHub Pages · giscus · Pagefind</span>
+        </div>
       </div>
     </div>
   </div>
@@ -37,12 +40,14 @@ import { withBase } from '../lib/url';
     grid-template-columns: 180px 1fr;
     gap: var(--gap-xl);
     align-items: start;
+    padding-bottom: clamp(32px, 4vw, 48px);
   }
   @media (max-width: 920px) {
     .about-card { grid-template-columns: 1fr; }
   }
-  .about-avatar { aspect-ratio: 4 / 5; }
+  .about-avatar { aspect-ratio: 3 / 4; }
   .about-body h2 { font-size: 26px; margin-bottom: 6px; }
   .about-detail { color: var(--color-muted); max-width: 60ch; margin: 0; }
-  .about-actions { flex-wrap: wrap; }
+  .about-actions { flex-wrap: wrap; margin-top: var(--gap-lg); }
+  .about-meta-line { margin-top: var(--gap-lg); border-top: 1px solid var(--color-line); padding-top: var(--gap-md); }
 </style>
